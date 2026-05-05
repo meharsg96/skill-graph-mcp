@@ -61,6 +61,23 @@ def test_test_writers_disambiguate(seeded, call):
     assert "react" in rtw["description"].lower()
 
 
+def test_chain_disambiguation_directives_present(seeded, call):
+    """F12: when two chains can produce semantically similar outputs
+    via different output types (test_suite vs react_test_suite, or
+    ui_components vs react_artifact), descriptions must contain an
+    explicit CHOOSE THIS / choose THAT directive so the agent's
+    route_task target selection isn't silent.
+
+    Pin: any rewrite of these descriptions has to keep the directive
+    or this test fails — ensures the F12 fix can't silently regress."""
+    r = call(seeded.list_skills)
+    by_id = {s["_id"]: s for s in r["results"]}
+    for sid in ("skill:ui-builder", "skill:leafygreen-ui",
+                "skill:test-writer", "skill:react-test-writer"):
+        d = by_id[sid]["description"]
+        assert "CHOOSE THIS" in d, f"{sid} missing CHOOSE THIS directive"
+
+
 def test_inactive_skill_description_explains_status(seeded, call):
     """A reader running list_skills(lifecycle='inactive') deserves to
     know why the skill is dead, not just that it is."""

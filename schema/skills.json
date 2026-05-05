@@ -112,7 +112,7 @@
     {
       "_id": "skill:ui-builder",
       "name": "Frontend UI Builder",
-      "description": "Generic React UI builder with per-deployment tenant overrides (e.g. client-a, client-b). Each tenant has its own design tokens and component overrides via the parameters collection. For MongoDB-branded UI, use skill:leafygreen-ui instead.",
+      "description": "Generic React UI builder with per-deployment tenant overrides (e.g. client-a, client-b). Consumes application_code from the data-backed chain (query-analysis -> schema-review -> code-gen). Each tenant has its own design tokens and component overrides via the parameters collection. CHOOSE THIS when the UI is data-backed (schema, queries, application code first); choose skill:leafygreen-ui when the UI is design-system-bound (Atlas-style, no schema dependency).",
       "version": "1.4.0",
       "lifecycle": "active",
       "input": {
@@ -345,7 +345,7 @@
     {
       "_id": "skill:leafygreen-ui",
       "name": "LeafyGreen UI Builder",
-      "description": "MongoDB's official LeafyGreen design system as a parameterized skill. Single canonical 'default' tenant carries the full design system; this skill does NOT support per-deployment overrides like client-a/client-b \u2014 for those, use skill:ui-builder. Pairs with skill:react-test-writer for tested LeafyGreen artifacts.",
+      "description": "MongoDB's official LeafyGreen design system as a parameterized skill. Consumes ui_requirements directly (no upstream chain \u2014 design-system-bound, not data-backed). Single canonical 'default' tenant carries the full design system; this skill does NOT support per-deployment overrides like client-a/client-b \u2014 for those, use skill:ui-builder. Pairs with skill:react-test-writer for tested LeafyGreen artifacts. CHOOSE THIS when the UI is design-system-bound (Atlas-style, no schema dependency); choose skill:ui-builder when the UI is data-backed (needs schema and queries first).",
       "version": "1.0.0",
       "lifecycle": "active",
       "input": {
@@ -382,7 +382,7 @@
     {
       "_id": "skill:test-writer",
       "name": "Test Suite Generator",
-      "description": "Generate test suites (pytest, jest, or go_test) from application code. For React-artifact tests, use skill:react-test-writer instead.",
+      "description": "Generate test suites (pytest, jest, or go_test) from application_code. Pairs with the data-backed chain via code-gen. For React-artifact tests (LeafyGreen path), use skill:react-test-writer instead. CHOOSE THIS when testing application_code (server logic, data layer); choose skill:react-test-writer when testing a react_artifact (UI rendering, accessibility).",
       "version": "1.5.0",
       "lifecycle": "active",
       "input": {
@@ -418,7 +418,7 @@
     {
       "_id": "skill:react-test-writer",
       "name": "React Test Suite Generator",
-      "description": "Generate React test suites (Playwright, React Testing Library, or Vitest) from a react_artifact. Pairs with skill:leafygreen-ui to close the LeafyGreen \u2192 tests path.",
+      "description": "Generate React test suites (Playwright, React Testing Library, or Vitest) from a react_artifact. Pairs with skill:leafygreen-ui to close the LeafyGreen \u2192 tests path. CHOOSE THIS when testing a react_artifact (UI rendering, accessibility, visual regression); choose skill:test-writer when testing application_code (server logic, data layer).",
       "version": "1.0.0",
       "lifecycle": "active",
       "input": {
