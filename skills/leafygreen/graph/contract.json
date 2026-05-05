@@ -1,0 +1,45 @@
+{
+  "_id": "skill:leafygreen-ui",
+  "name": "LeafyGreen UI Builder",
+  "version": "1.0.0",
+  "lifecycle": "active",
+  "input": {
+    "type": "ui_requirements",
+    "schema": "schema:ui-requirements:v1",
+    "description": "A description of the UI to build — component type, layout, theme, interactive behavior"
+  },
+  "output": {
+    "type": "react_artifact",
+    "schema": "schema:react-artifact:v1",
+    "description": "A self-contained React JSX artifact with LeafyGreen design tokens injected as CSS custom properties"
+  },
+  "dependencies": [],
+  "dependency_constraints": {},
+  "parameter_sources": [
+    "tokens:leafygreen",
+    "components:leafygreen"
+  ],
+  "domain_fields": {
+    "design_system": "leafygreen",
+    "design_system_source": "https://github.com/mongodb/leafygreen-ui",
+    "artifact_format": "react_jsx",
+    "theme_support": ["light", "dark"],
+    "component_count": 60,
+    "rendering_strategy": "css_custom_properties",
+    "rendering_note": "LeafyGreen uses Emotion CSS-in-JS which is unavailable in artifact environments. This skill encodes the full design system as CSS custom properties and Tailwind-compatible patterns.",
+    "font_fallback_note": "Euclid Circular A is not available on CDN. The system font stack matches its metrics.",
+    "accessibility_note": "Green (#00ED64) NEVER used for text on white (fails WCAG AA). Use green.dark2 (#00684A) for text."
+  },
+  "integration": {
+    "imprint": {
+      "description": "When used alongside the Imprint skill, LeafyGreen acts as a flavour override",
+      "overrides": {
+        "accent_color": "green.dark2",
+        "font_stack": "typography.fontFamilies.default",
+        "spacing_scale": "spacing",
+        "component_patterns": "All standard controls use LeafyGreen specs"
+      },
+      "preserved": "Imprint craft principles (rhythm, accent economy, datum alignment)"
+    }
+  }
+}

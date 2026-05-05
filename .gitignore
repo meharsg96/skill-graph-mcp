@@ -22,3 +22,7 @@ venv/
 
 # Local-only working notes, plans, drafts — never committed
 notes/
+
+# Generated demo artifacts (e.g. R1 outputs from Claude Code)
+login-*.html
+*-artifact.html

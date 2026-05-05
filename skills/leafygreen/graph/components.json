@@ -1,0 +1,335 @@
+{
+  "_id": "components:leafygreen",
+  "skill_id": "skill:leafygreen-ui",
+  "version": "1.0.0",
+  "categories": {
+    "form": {
+      "button": {
+        "variants": ["default", "primary", "primaryOutline", "danger", "dangerOutline"],
+        "sizes": ["xsmall", "small", "default", "large"],
+        "sizeSpecs": {
+          "xsmall": { "height": 22, "fontSize": 12, "padding": "0 6px" },
+          "small": { "height": 28, "fontSize": 12, "padding": "0 10px" },
+          "default": { "height": 36, "fontSize": 13, "padding": "0 12px" },
+          "large": { "height": 48, "fontSize": 16, "padding": "0 20px" }
+        },
+        "variantSpecs": {
+          "default": { "bg": "white", "color": "black", "border": "1px solid gray.base", "hoverBg": "gray.light2", "hoverRing": "hoverRing.gray" },
+          "primary": { "bg": "green.dark2", "color": "white", "border": "none", "hoverBg": "green.dark3", "hoverRing": "hoverRing.green" },
+          "primaryOutline": { "bg": "transparent", "color": "green.dark2", "border": "1px solid green.dark2", "hoverBg": "green.light3", "hoverRing": "hoverRing.green" },
+          "danger": { "bg": "red.base", "color": "white", "border": "none", "hoverBg": "red.dark2", "hoverRing": "hoverRing.red" },
+          "dangerOutline": { "bg": "transparent", "color": "red.base", "border": "1px solid red.base", "hoverBg": "red.light3", "hoverRing": "hoverRing.red" }
+        },
+        "commonStyles": { "fontWeight": 500, "borderRadius": "radius.150", "cursor": "pointer", "transition": "all transition.default ease-in-out" },
+        "states": ["default", "hover", "focus", "active", "disabled"],
+        "props": ["variant", "size", "disabled", "leftGlyph", "rightGlyph", "href", "as"]
+      },
+      "iconButton": {
+        "sizes": ["xsmall", "small", "default", "large"],
+        "sizeSpecs": {
+          "xsmall": 22, "small": 28, "default": 28, "large": 36
+        },
+        "styles": { "borderRadius": "radius.100", "border": "none", "background": "transparent", "color": "gray.dark1" },
+        "states": ["default", "hover", "focus", "active", "disabled"]
+      },
+      "splitButton": {
+        "variants": ["default", "primary", "danger"],
+        "sizes": ["default", "small", "xsmall", "large"],
+        "description": "Button with attached dropdown trigger for secondary actions"
+      },
+      "textInput": {
+        "sizes": ["xsmall", "small", "default", "large"],
+        "states": ["none", "error", "warning", "valid"],
+        "props": ["label", "description", "errorMessage", "successMessage", "placeholder", "disabled", "optional", "type", "value", "onChange"],
+        "styles": { "height": 36, "borderRadius": "radius.150", "border": "1px solid gray.base", "padding": "0 12px", "fontSize": "body1.fontSize" },
+        "labelStyles": { "fontSize": 14, "fontWeight": 600, "marginBottom": 4 }
+      },
+      "passwordInput": {
+        "extends": "textInput",
+        "additionalProps": ["stateNotifications"],
+        "description": "Text input with password visibility toggle"
+      },
+      "numberInput": {
+        "extends": "textInput",
+        "additionalProps": ["unit", "unitOptions"],
+        "description": "Numeric input with optional unit selector"
+      },
+      "textArea": {
+        "states": ["none", "error", "warning", "valid"],
+        "props": ["label", "description", "errorMessage", "placeholder", "disabled"]
+      },
+      "searchInput": {
+        "sizes": ["default", "large"],
+        "props": ["placeholder", "disabled", "onChange", "onClear"],
+        "description": "Input with search icon and clear button"
+      },
+      "select": {
+        "sizes": ["xsmall", "small", "default", "large"],
+        "states": ["none", "error"],
+        "props": ["label", "description", "errorMessage", "placeholder", "disabled", "value", "onChange", "children"],
+        "description": "Custom dropdown select with option list"
+      },
+      "combobox": {
+        "sizes": ["default", "small"],
+        "props": ["label", "description", "placeholder", "multiselect", "searchable", "filteredOptions", "onChange"],
+        "description": "Searchable select with autocomplete and multi-select support"
+      },
+      "checkbox": {
+        "props": ["label", "checked", "indeterminate", "disabled", "onChange", "bold", "description"],
+        "styles": { "size": 16, "borderRadius": "radius.50", "checkedBg": "green.dark2", "border": "2px solid gray.dark1" }
+      },
+      "radioGroup": {
+        "props": ["children", "value", "onChange", "name"],
+        "childProps": ["value", "label", "disabled", "description"]
+      },
+      "radioBoxGroup": {
+        "props": ["children", "value", "onChange", "name", "size"],
+        "sizes": ["default", "compact", "full"],
+        "description": "Card-style radio options for visual selection"
+      },
+      "toggle": {
+        "sizes": ["default", "small", "xsmall"],
+        "sizeSpecs": {
+          "default": { "trackW": 32, "trackH": 18, "thumb": 14 },
+          "small": { "trackW": 26, "trackH": 14, "thumb": 10 },
+          "xsmall": { "trackW": 20, "trackH": 12, "thumb": 8 }
+        },
+        "props": ["checked", "onChange", "label", "disabled", "size"],
+        "styles": { "offBg": "gray.light1", "onBg": "green.dark1", "thumbColor": "white" }
+      },
+      "datePicker": {
+        "props": ["label", "description", "value", "onChange", "min", "max", "locale"],
+        "description": "Calendar-based date selection with keyboard navigation"
+      },
+      "formField": {
+        "description": "Wrapper providing label, description, and error/success messaging for any form element"
+      },
+      "formFooter": {
+        "props": ["primaryButton", "cancelButton", "backButton", "errorMessage"],
+        "description": "Standardized form submission footer with primary/cancel actions"
+      }
+    },
+    "feedback": {
+      "badge": {
+        "variants": ["lightgray", "darkgray", "red", "yellow", "blue", "green", "purple"],
+        "variantSpecs": {
+          "lightgray": { "bg": "gray.light2", "color": "gray.dark2" },
+          "darkgray": { "bg": "gray.dark2", "color": "white" },
+          "blue": { "bg": "blue.light3", "color": "blue.dark2" },
+          "green": { "bg": "green.light3", "color": "green.dark2" },
+          "yellow": { "bg": "yellow.light3", "color": "yellow.dark3" },
+          "red": { "bg": "red.light3", "color": "red.dark2" },
+          "purple": { "bg": "purple.light3", "color": "purple.dark2" }
+        },
+        "styles": { "borderRadius": "radius.100", "padding": "3px 6px", "fontSize": 12, "fontWeight": 600, "textTransform": "uppercase", "letterSpacing": "0.4px" }
+      },
+      "banner": {
+        "variants": ["info", "warning", "success", "danger"],
+        "variantSpecs": {
+          "info": { "bg": "blue.light3", "borderColor": "blue.base" },
+          "warning": { "bg": "yellow.light3", "borderColor": "yellow.dark2" },
+          "success": { "bg": "green.light3", "borderColor": "green.dark2" },
+          "danger": { "bg": "red.light3", "borderColor": "red.base" }
+        },
+        "styles": { "borderLeft": "3px solid", "padding": "spacing.400", "borderRadius": "radius.200" },
+        "props": ["variant", "dismissible", "image", "onClose"]
+      },
+      "callout": {
+        "variants": ["note", "tip", "important", "warning", "example"],
+        "description": "Documentation-style callout block for special content"
+      },
+      "toast": {
+        "variants": ["success", "note", "warning", "important", "progress"],
+        "props": ["variant", "title", "body", "progress", "onClose", "timeout"],
+        "styles": { "position": "fixed bottom-right", "shadow": "shadow.3", "borderRadius": "radius.300", "padding": "spacing.400" },
+        "description": "Temporary notification with auto-dismiss and progress support"
+      },
+      "loadingIndicator": {
+        "sizes": ["small", "default", "large"],
+        "description": "Animated spinner for loading states"
+      },
+      "skeletonLoader": {
+        "variants": ["default", "card", "paragraph", "header"],
+        "description": "Placeholder content while loading"
+      },
+      "progressBar": {
+        "props": ["value", "max", "variant"],
+        "variants": ["default", "danger"],
+        "styles": { "height": 8, "borderRadius": 4, "bgTrack": "gray.light2", "bgFill": "green.dark1" }
+      },
+      "emptyState": {
+        "props": ["title", "description", "primaryButton", "externalLink", "graphic"],
+        "description": "Illustration and CTA for empty/zero-data states"
+      },
+      "chip": {
+        "variants": ["blue", "green", "purple", "red", "yellow", "gray"],
+        "props": ["label", "onDismiss", "disabled", "variant"],
+        "description": "Removable tag/filter chip"
+      }
+    },
+    "navigation": {
+      "tabs": {
+        "props": ["children", "selected", "setSelected", "as"],
+        "tabProps": ["name", "disabled", "default"],
+        "styles": {
+          "container": { "borderBottom": "1px solid gray.light2" },
+          "activeTab": { "borderBottom": "3px solid green.dark2", "fontWeight": 600, "color": "text.primary" },
+          "inactiveTab": { "fontWeight": 400, "color": "text.secondary" },
+          "tabPadding": "spacing.400"
+        }
+      },
+      "sideNav": {
+        "description": "Vertical navigation panel (Atlas-style) with collapsible groups",
+        "styles": { "width": 240, "bg": "gray.dark4", "color": "white" },
+        "activeStyles": { "borderLeft": "3px solid green.base", "bg": "green.dark3", "color": "green.base" }
+      },
+      "sectionNav": {
+        "description": "In-page section navigation (anchor links)"
+      },
+      "menu": {
+        "components": ["Menu", "MenuItem", "SubMenu", "MenuSeparator", "MenuGroup"],
+        "description": "Dropdown menu with nested submenus and keyboard navigation"
+      },
+      "pagination": {
+        "props": ["currentPage", "totalItems", "itemsPerPage", "onPageChange"],
+        "description": "Page navigation with configurable items per page"
+      },
+      "stepper": {
+        "props": ["children", "currentStep"],
+        "description": "Horizontal multi-step progress indicator"
+      },
+      "verticalStepper": {
+        "description": "Vertical multi-step progress with content panels"
+      },
+      "pipeline": {
+        "description": "Visual pipeline/stage representation (MongoDB aggregation style)"
+      },
+      "segmentedControl": {
+        "sizes": ["default", "small", "large", "xsmall"],
+        "props": ["options", "value", "onChange"],
+        "styles": { "borderRadius": "radius.150", "border": "1px solid gray.light2", "activeBg": "green.dark2", "activeColor": "white" }
+      },
+      "guideCue": {
+        "description": "Tooltip-style onboarding cue with beacon animation"
+      }
+    },
+    "layout": {
+      "card": {
+        "props": ["as", "href", "contentStyle"],
+        "styles": { "bg": "bg.primary", "borderRadius": "radius.600", "shadow": "shadow.1", "padding": "spacing.600" },
+        "hoverStyles": { "shadow": "shadow.2" }
+      },
+      "expandableCard": {
+        "props": ["title", "description", "defaultOpen"],
+        "description": "Card with collapsible content section"
+      },
+      "previewCard": {
+        "description": "Card with thumbnail image preview"
+      },
+      "modal": {
+        "sizes": ["small", "default", "large"],
+        "props": ["open", "setOpen", "children", "initialFocus"],
+        "styles": { "overlay": "rgba(0, 30, 43, 0.6)", "borderRadius": "radius.600", "shadow": "shadow.3", "padding": "spacing.800", "maxWidth": 600 }
+      },
+      "confirmationModal": {
+        "extends": "modal",
+        "props": ["title", "buttonText", "requiredInputText", "submitDisabled", "onConfirm", "onCancel"],
+        "description": "Modal requiring explicit confirmation (type-to-confirm pattern)"
+      },
+      "marketingModal": {
+        "description": "Promotional modal with graphic/illustration and CTA"
+      },
+      "drawer": {
+        "props": ["open", "setOpen", "title"],
+        "description": "Slide-in side panel for detail views"
+      },
+      "contextDrawer": {
+        "description": "Contextual side panel triggered by selection"
+      },
+      "popover": {
+        "props": ["active", "align", "justify", "children", "refEl"],
+        "description": "Positioned floating content container"
+      },
+      "tooltip": {
+        "props": ["trigger", "children", "align", "justify", "enabled"],
+        "styles": { "bg": "gray.dark3", "color": "white", "borderRadius": "radius.100", "padding": "4px 8px", "fontSize": 12, "shadow": "shadow.2" },
+        "description": "Hover/focus tooltip with configurable positioning"
+      },
+      "infoSprinkle": {
+        "description": "Small info icon that shows a tooltip on hover"
+      },
+      "inlineDefinition": {
+        "description": "Underlined term that shows definition tooltip"
+      },
+      "featureWalls": {
+        "description": "Paywall/feature-gating components with upgrade CTAs"
+      },
+      "toolbar": {
+        "description": "Horizontal action bar for batch operations"
+      }
+    },
+    "dataDisplay": {
+      "table": {
+        "props": ["data", "columns", "sortBy", "onSort"],
+        "headerStyles": {
+          "bg": "gray.light3", "fontWeight": 600, "fontSize": 12,
+          "textTransform": "uppercase", "letterSpacing": "0.4px",
+          "color": "text.secondary", "padding": "8px 16px"
+        },
+        "rowStyles": {
+          "borderBottom": "1px solid gray.light2", "fontSize": "body1.fontSize",
+          "padding": "8px 16px", "hoverBg": "gray.light3"
+        },
+        "features": ["sortable", "selectable", "expandable", "virtualScrolling"]
+      },
+      "code": {
+        "variants": ["light", "dark"],
+        "props": ["language", "children", "showLineNumbers", "copyable"],
+        "description": "Syntax-highlighted code block with copy button"
+      },
+      "codeEditor": {
+        "description": "Full code editor component (Monaco-based)"
+      },
+      "copyable": {
+        "props": ["children", "label", "description"],
+        "description": "Text with one-click copy-to-clipboard"
+      },
+      "typography": {
+        "components": ["H1", "H2", "H3", "Subtitle", "Body", "InlineCode", "InlineKeyCode", "Disclaimer", "Overline", "Link", "BackLink"],
+        "linkProps": ["href", "arrowAppearance", "hideExternalIcon"]
+      },
+      "orderedList": {
+        "description": "Styled ordered list with LeafyGreen typography"
+      },
+      "galleryIndicator": {
+        "description": "Dot-based carousel position indicator"
+      },
+      "logo": {
+        "variants": ["MongoDBLogoMark", "MongoDBLogo", "AtlasNavGraphic", "ChartsLogoMark", "RealmLogoMark"],
+        "description": "Official MongoDB product logos and marks"
+      },
+      "icon": {
+        "sizes": ["small", "default", "large", "xlarge"],
+        "sizeSpecs": { "small": 14, "default": 16, "large": 20, "xlarge": 24 },
+        "description": "200+ glyphs from the LeafyGreen icon set"
+      },
+      "avatar": {
+        "sizes": ["default", "small", "large"],
+        "props": ["name", "src", "format"],
+        "description": "User/entity avatar with initials fallback"
+      }
+    },
+    "utility": {
+      "a11y": { "description": "Accessibility utilities (VisuallyHidden, etc.)" },
+      "hooks": { "description": "Shared React hooks (useEventListener, usePrevious, etc.)" },
+      "leafygreenProvider": { "description": "Theme and dark mode context provider" },
+      "emotion": { "description": "CSS-in-JS utilities (Emotion wrapper)" },
+      "lib": { "description": "Shared types and utility functions" },
+      "polymorphic": { "description": "Polymorphic component type utilities ('as' prop)" },
+      "portal": { "description": "React portal wrapper for rendering outside DOM hierarchy" },
+      "ripple": { "description": "Material-style ripple effect on interaction" },
+      "descendants": { "description": "Descendant index management for compound components" },
+      "inputOption": { "description": "Shared option component for select/combobox internals" }
+    }
+  }
+}
