@@ -17,6 +17,7 @@ Environment:
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -25,6 +26,13 @@ from pymongo import MongoClient
 
 DB_NAME = "skill_graph"
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
+
+# MCP's stdio transport spawns servers with an empty env by default — the host
+# must opt in to forwarding any variable. To keep session-scoped aggregations
+# meaningful even when the host doesn't forward SESSION_ID, fall back to a
+# server-lifetime id. Calls within one server process then group naturally;
+# explicit SESSION_ID still wins when provided.
+SESSION_ID = os.environ.get("SESSION_ID") or f"session:auto-{os.getpid()}-{int(time.time())}"
 
 client = MongoClient(MONGODB_URI)
 db = client[DB_NAME]
@@ -61,7 +69,7 @@ def log_tool_call(func):
                     "params": kwargs,
                     "tokens_returned": payload_chars // 4,
                     "duration_ms": (datetime.now(timezone.utc) - start).total_seconds() * 1000,
-                    "session_id": os.environ.get("SESSION_ID", "default"),
+                    "session_id": SESSION_ID,
                     "error": error,
                     "timestamp": start,
                 })

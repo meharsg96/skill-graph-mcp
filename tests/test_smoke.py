@@ -151,8 +151,26 @@ def test_log_tool_call_writes_runs_document(seeded):
     assert doc["params"] == {"skill_id": "skill:query-analysis"}
     assert doc["tokens_returned"] > 0
     assert doc["duration_ms"] >= 0
-    assert doc["session_id"] == "default"
+    # SESSION_ID is captured at module load. Conftest doesn't set one, so we
+    # expect either the auto-generated fallback (preferred) or whatever the
+    # surrounding env supplied.
+    assert doc["session_id"].startswith("session:") or doc["session_id"] == os.environ.get("SESSION_ID")
     assert doc["error"] is None
+
+
+def test_session_id_auto_fallback_when_unset(seeded):
+    """If SESSION_ID was unset at server import, the captured id should be
+    the auto-generated session:auto-<pid>-<epoch> form so calls still group."""
+    captured = seeded.SESSION_ID
+    if os.environ.get("SESSION_ID"):
+        # Surrounding env supplied one — the explicit value should win.
+        assert captured == os.environ["SESSION_ID"]
+    else:
+        assert captured.startswith("session:auto-")
+        # Two segments after the prefix: pid and epoch
+        suffix = captured[len("session:auto-"):]
+        pid, epoch = suffix.split("-")
+        assert pid.isdigit() and epoch.isdigit()
 
 
 def test_seed_preserves_runs_collection(seeded, seed_module):
