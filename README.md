@@ -40,6 +40,8 @@ After running tools, summarise the captured `db.runs` log:
 python scripts/analyze.py --all                 # blog 1 + blog 2 tables
 python scripts/analyze.py --table blog2 \
        --session "$SESSION_ID"                  # one session at a time
+python scripts/measure_baseline.py              # modeled file-read baseline,
+                                                # compared against the analyze.py total
 ```
 
 > **Heads up:** every `python …` command above must run inside the activated
