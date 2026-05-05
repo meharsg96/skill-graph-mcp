@@ -412,6 +412,9 @@ def search_skills(query: str, limit: int = 10) -> dict:
 
     Backed by Mongo's text index created in seed.py. Returns ranked
     results with relevance scores.
+
+    For "list every skill" queries, use `list_skills` instead — text
+    indexes need search terms and produce poor results for enumeration.
     """
     cursor = (
         db.skills
@@ -424,6 +427,40 @@ def search_skills(query: str, limit: int = 10) -> dict:
         .limit(limit)
     )
     return {"query": query, "results": list(cursor)}
+
+
+@mcp.tool()
+@log_tool_call
+def list_skills(
+    lifecycle: str = "active",
+    input_type: str = None,
+    output_type: str = None,
+) -> dict:
+    """Enumerate skills matching declarative filters.
+
+    Use this for "what skills exist?" or "what produces X?" — anywhere
+    you'd want a list rather than a ranked relevance match. `search_skills`
+    is the wrong tool for that intent (text indexes need search terms).
+
+    Args:
+        lifecycle: "active" (default), "inactive", or "any"
+        input_type: filter to skills consuming this type
+        output_type: filter to skills producing this type
+    """
+    match: dict = {}
+    if lifecycle and lifecycle != "any":
+        match["lifecycle"] = lifecycle
+    if input_type is not None:
+        match["input_type"] = input_type
+    if output_type is not None:
+        match["output_type"] = output_type
+    cursor = db.skills.find(
+        match,
+        {"name": 1, "version": 1, "lifecycle": 1,
+         "input_type": 1, "output_type": 1, "dependencies": 1}
+    ).sort("_id", 1)
+    results = list(cursor)
+    return {"filter": match, "count": len(results), "results": results}
 
 
 @mcp.tool()
