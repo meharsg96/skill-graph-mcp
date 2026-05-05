@@ -1,0 +1,88 @@
+<svg width="100%" viewBox="0 0 680 440" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Three-stage evolution of skill architecture</title>
+<desc>From monolithic SKILL.md (30K tokens) to parameterized JSON files (7K loaded, 700 needed) to MongoDB+MCP (700 tokens returned).</desc>
+<style>
+  text { font-family: system-ui, -apple-system, sans-serif; }
+  .th { font-size: 14px; font-weight: 500; fill: #2C2C2A; }
+  .ts { font-size: 12px; font-weight: 400; fill: #5F5E5A; }
+  .fill-coral { fill: #FAECE7; stroke: #993C1D; }
+  .fill-teal { fill: #E1F5EE; stroke: #0F6E56; }
+  .fill-purple { fill: #EEEDFE; stroke: #534AB7; }
+  .fill-blue { fill: #E6F1FB; stroke: #185FA5; }
+  .fill-green { fill: #EAF3DE; stroke: #3B6D11; }
+  .fill-amber { fill: #FAEEDA; stroke: #854F0B; }
+  .fill-red { fill: #FCEBEB; stroke: #A32D2D; }
+  .fill-gray { fill: #F1EFE8; stroke: #5F5E5A; }
+  .th-coral { fill: #712B13; } .ts-coral { fill: #993C1D; }
+  .th-teal { fill: #085041; } .ts-teal { fill: #0F6E56; }
+  .th-purple { fill: #3C3489; } .ts-purple { fill: #534AB7; }
+  .th-blue { fill: #0C447C; } .ts-blue { fill: #185FA5; }
+  .th-green { fill: #27500A; } .ts-green { fill: #3B6D11; }
+  .th-amber { fill: #633806; } .ts-amber { fill: #854F0B; }
+  .th-red { fill: #791F1F; } .ts-red { fill: #A32D2D; }
+  .arr { stroke: #5F5E5A; stroke-width: 1; }
+</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+<text class="th" x="112" y="40" text-anchor="middle">1. Monolithic</text>
+<rect class="fill-coral" x="42" y="56" width="140" height="200" rx="8" stroke-width="0.5"/>
+<text class="th th-coral" x="112" y="80" text-anchor="middle">SKILL.md</text>
+<text class="ts ts-coral" x="112" y="100" text-anchor="middle">Instructions</text>
+<text class="ts ts-coral" x="112" y="116" text-anchor="middle">+ all config</text>
+<text class="ts ts-coral" x="112" y="132" text-anchor="middle">+ all tokens</text>
+<text class="ts ts-coral" x="112" y="148" text-anchor="middle">+ all layouts</text>
+<text class="ts ts-coral" x="112" y="164" text-anchor="middle">+ all modes</text>
+
+<rect class="fill-red" x="52" y="272" width="120" height="44" rx="8" stroke-width="0.5"/>
+<text class="th th-red" x="112" y="290" text-anchor="middle">30,000</text>
+<text class="ts ts-red" x="112" y="306" text-anchor="middle">tokens loaded</text>
+<line x1="112" y1="256" x2="112" y2="270" class="arr" marker-end="url(#arrow)"/>
+
+<line x1="196" y1="150" x2="226" y2="150" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="340" y="40" text-anchor="middle">2. Parameterized</text>
+<rect class="fill-teal" x="270" y="56" width="140" height="56" rx="8" stroke-width="0.5"/>
+<text class="th th-teal" x="340" y="78" text-anchor="middle">SKILL.md</text>
+<text class="ts ts-teal" x="340" y="96" text-anchor="middle">Instructions only</text>
+
+<rect class="fill-coral" x="270" y="128" width="140" height="128" rx="8" stroke-width="0.5"/>
+<text class="th th-coral" x="340" y="150" text-anchor="middle">tokens.json</text>
+<text class="ts ts-coral" x="340" y="170" text-anchor="middle">Agent reads</text>
+<text class="ts ts-coral" x="340" y="186" text-anchor="middle">whole file</text>
+
+<rect class="fill-green" x="282" y="210" width="116" height="32" rx="6" stroke-width="0.5"/>
+<text class="ts ts-green" x="340" y="230" text-anchor="middle">700 needed</text>
+
+<rect class="fill-amber" x="280" y="272" width="120" height="44" rx="8" stroke-width="0.5"/>
+<text class="th th-amber" x="340" y="290" text-anchor="middle">7,000</text>
+<text class="ts ts-amber" x="340" y="306" text-anchor="middle">tokens loaded</text>
+<line x1="340" y1="256" x2="340" y2="270" class="arr" marker-end="url(#arrow)"/>
+
+<line x1="424" y1="150" x2="454" y2="150" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="568" y="40" text-anchor="middle">3. MongoDB + MCP</text>
+<rect class="fill-teal" x="498" y="56" width="140" height="56" rx="8" stroke-width="0.5"/>
+<text class="th th-teal" x="568" y="78" text-anchor="middle">SKILL.md</text>
+<text class="ts ts-teal" x="568" y="96" text-anchor="middle">Instructions only</text>
+
+<rect class="fill-purple" x="498" y="128" width="140" height="44" rx="8" stroke-width="0.5"/>
+<text class="th th-purple" x="568" y="144" text-anchor="middle">MCP server</text>
+<text class="ts ts-purple" x="568" y="162" text-anchor="middle">get_tokens("dark")</text>
+
+<rect class="fill-blue" x="498" y="188" width="140" height="44" rx="8" stroke-width="0.5"/>
+<text class="th th-blue" x="568" y="204" text-anchor="middle">MongoDB</text>
+<text class="ts ts-blue" x="568" y="222" text-anchor="middle">returns 1 doc</text>
+
+<rect class="fill-green" x="508" y="272" width="120" height="44" rx="8" stroke-width="0.5"/>
+<text class="th th-green" x="568" y="290" text-anchor="middle">700</text>
+<text class="ts ts-green" x="568" y="306" text-anchor="middle">tokens loaded</text>
+<line x1="568" y1="232" x2="568" y2="270" class="arr" marker-end="url(#arrow)"/>
+
+<text class="ts" x="112" y="340" text-anchor="middle">Everything on trigger</text>
+<text class="ts" x="340" y="340" text-anchor="middle">Right file, whole file</text>
+<text class="ts" x="568" y="340" text-anchor="middle">Right document only</text>
+
+<rect x="40" y="370" width="600" height="40" rx="8" fill="none" stroke="#B4B2A9" stroke-width="0.5"/>
+<text class="ts" x="340" y="394" text-anchor="middle">Same question: "what are the dark theme colors?"</text>
+<text class="ts" x="340" y="412" text-anchor="middle">30,000 → 7,000 → 700 tokens</text>
+</svg>

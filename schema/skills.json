@@ -1,0 +1,136 @@
+{
+  "skills": [
+    {
+      "_id": "skill:query-analysis",
+      "name": "Query Pattern Analysis",
+      "input_type": "workload_description",
+      "output_type": "query_patterns",
+      "lifecycle": "active",
+      "version": "1.0",
+      "dependencies": [],
+      "domain_fields": {
+        "analysis_types": ["read_heavy", "write_heavy", "mixed"]
+      },
+      "skill_path": "skills/query-analysis/SKILL.md"
+    },
+    {
+      "_id": "skill:schema-review",
+      "name": "Schema Design Review",
+      "input_type": "query_patterns",
+      "output_type": "schema_recommendation",
+      "lifecycle": "active",
+      "version": "2.1",
+      "dependencies": ["skill:query-analysis"],
+      "domain_fields": {
+        "target_databases": ["relational", "document", "graph"],
+        "index_strategies": ["compound", "partial", "wildcard", "text", "vector"],
+        "anti_patterns": ["massive_arrays", "unbounded_growth"]
+      },
+      "skill_path": "skills/schema-review/SKILL.md"
+    },
+    {
+      "_id": "skill:code-gen",
+      "name": "Application Code Generator",
+      "input_type": "schema_recommendation",
+      "output_type": "application_code",
+      "lifecycle": "active",
+      "version": "3.0",
+      "dependencies": ["skill:schema-review"],
+      "domain_fields": {
+        "languages": ["python", "typescript", "go"],
+        "frameworks": ["fastapi", "express", "gin"]
+      },
+      "skill_path": "skills/code-gen/SKILL.md"
+    },
+    {
+      "_id": "skill:ui-builder",
+      "name": "Frontend UI Builder",
+      "input_type": "application_code",
+      "output_type": "ui_components",
+      "lifecycle": "active",
+      "version": "1.4",
+      "dependencies": ["skill:code-gen"],
+      "domain_fields": {
+        "component_library": "react",
+        "design_tokens": {
+          "themes": ["light", "dark"],
+          "spacing_unit": 4,
+          "type_scale": [12, 14, 16, 20, 24, 32]
+        },
+        "breakpoints": {"sm": 640, "md": 768, "lg": 1024, "xl": 1280}
+      },
+      "skill_path": "skills/ui-builder/SKILL.md"
+    },
+    {
+      "_id": "skill:test-writer",
+      "name": "Test Suite Generator",
+      "input_type": "application_code",
+      "output_type": "test_suite",
+      "lifecycle": "active",
+      "version": "1.5",
+      "dependencies": ["skill:code-gen"],
+      "domain_fields": {
+        "test_frameworks": ["pytest", "jest", "go_test"],
+        "coverage_targets": {"line": 80, "branch": 70}
+      },
+      "skill_path": "skills/test-writer/SKILL.md"
+    },
+    {
+      "_id": "skill:schema-review-v1",
+      "name": "Schema Design Review (v1)",
+      "input_type": "workload_description",
+      "output_type": "schema_recommendation_v1",
+      "lifecycle": "inactive",
+      "version": "1.0",
+      "dependencies": [],
+      "domain_fields": {
+        "target_databases": ["relational", "document"]
+      },
+      "skill_path": "skills/schema-review-v1/SKILL.md",
+      "replaced_by": "skill:schema-review"
+    }
+  ],
+  "edges": [
+    {
+      "_id": "edge:query-analysis->schema-review",
+      "from_skill": "skill:query-analysis",
+      "to_skill": "skill:schema-review",
+      "produced_type": "query_patterns",
+      "consumed_type": "query_patterns",
+      "compatible": true
+    },
+    {
+      "_id": "edge:schema-review->code-gen",
+      "from_skill": "skill:schema-review",
+      "to_skill": "skill:code-gen",
+      "produced_type": "schema_recommendation",
+      "consumed_type": "schema_recommendation",
+      "compatible": true
+    },
+    {
+      "_id": "edge:code-gen->ui-builder",
+      "from_skill": "skill:code-gen",
+      "to_skill": "skill:ui-builder",
+      "produced_type": "application_code",
+      "consumed_type": "application_code",
+      "compatible": true
+    },
+    {
+      "_id": "edge:code-gen->test-writer",
+      "from_skill": "skill:code-gen",
+      "to_skill": "skill:test-writer",
+      "produced_type": "application_code",
+      "consumed_type": "application_code",
+      "compatible": true
+    },
+    {
+      "_id": "edge:schema-review-v1->code-gen",
+      "from_skill": "skill:schema-review-v1",
+      "to_skill": "skill:code-gen",
+      "produced_type": "schema_recommendation_v1",
+      "consumed_type": "schema_recommendation",
+      "compatible": false,
+      "note": "v1 output lacks index strategy fields required by code-gen v3"
+    }
+  ]
+}
