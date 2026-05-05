@@ -110,9 +110,9 @@ def get_skill_contract(skill_id: str) -> dict:
     """Get a skill's base contract: input/output types, dependencies, version."""
     skill = _active_skill(
         skill_id,
-        {"name": 1, "input_type": 1, "output_type": 1, "input": 1, "output": 1,
-         "dependencies": 1, "dependency_constraints": 1, "version": 1,
-         "parameter_sources": 1}
+        {"name": 1, "description": 1, "input_type": 1, "output_type": 1,
+         "input": 1, "output": 1, "dependencies": 1, "dependency_constraints": 1,
+         "version": 1, "parameter_sources": 1}
     )
     if not skill:
         return {"error": f"Skill '{skill_id}' not found or not active"}
@@ -439,8 +439,8 @@ def search_skills(query: str, limit: int = 10) -> dict:
         db.skills
         .find(
             {"$text": {"$search": query}, "lifecycle": "active"},
-            {"name": 1, "input_type": 1, "output_type": 1, "version": 1,
-             "score": {"$meta": "textScore"}}
+            {"name": 1, "description": 1, "input_type": 1, "output_type": 1,
+             "version": 1, "score": {"$meta": "textScore"}}
         )
         .sort([("score", {"$meta": "textScore"})])
         .limit(limit)
@@ -475,7 +475,7 @@ def list_skills(
         match["output_type"] = output_type
     cursor = db.skills.find(
         match,
-        {"name": 1, "version": 1, "lifecycle": 1,
+        {"name": 1, "description": 1, "version": 1, "lifecycle": 1,
          "input_type": 1, "output_type": 1, "dependencies": 1}
     ).sort("_id", 1)
     results = list(cursor)

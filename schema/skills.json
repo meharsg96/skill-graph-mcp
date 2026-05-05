@@ -3,6 +3,7 @@
     {
       "_id": "skill:query-analysis",
       "name": "Query Pattern Analysis",
+      "description": "Analyze an application workload description to extract query patterns by access type (read-heavy, write-heavy, mixed). Entry point of the data-backed application chain.",
       "version": "1.0.0",
       "lifecycle": "active",
       "input":  {"type": "workload_description", "schema": "schema:workload-description:v1"},
@@ -18,6 +19,7 @@
     {
       "_id": "skill:schema-review",
       "name": "Schema Design Review",
+      "description": "Recommend a schema design and indexing strategy given query patterns. Supports relational, document, and graph targets.",
       "version": "2.1.0",
       "lifecycle": "active",
       "input":  {"type": "query_patterns",        "schema": "schema:query-patterns:v1"},
@@ -37,6 +39,7 @@
     {
       "_id": "skill:code-gen",
       "name": "Application Code Generator",
+      "description": "Generate application code (FastAPI, Express, or Gin) from a schema recommendation. Forks downstream into UI and test chains.",
       "version": "3.0.0",
       "lifecycle": "active",
       "input":  {"type": "schema_recommendation", "schema": "schema:schema-recommendation:v2"},
@@ -55,6 +58,7 @@
     {
       "_id": "skill:ui-builder",
       "name": "Frontend UI Builder",
+      "description": "Generic React UI builder with per-deployment tenant overrides (e.g. client-a, client-b). Each tenant has its own design tokens and component overrides via the parameters collection. For MongoDB-branded UI, use skill:leafygreen-ui instead.",
       "version": "1.4.0",
       "lifecycle": "active",
       "input":  {"type": "application_code", "schema": "schema:application-code:v1"},
@@ -127,6 +131,7 @@
     {
       "_id": "skill:leafygreen-ui",
       "name": "LeafyGreen UI Builder",
+      "description": "MongoDB's official LeafyGreen design system as a parameterized skill. Single canonical 'default' tenant carries the full design system; this skill does NOT support per-deployment overrides like client-a/client-b — for those, use skill:ui-builder. Pairs with skill:react-test-writer for tested LeafyGreen artifacts.",
       "version": "1.0.0",
       "lifecycle": "active",
       "input":  {"type": "ui_requirements", "schema": "schema:ui-requirements:v1"},
@@ -155,6 +160,7 @@
     {
       "_id": "skill:test-writer",
       "name": "Test Suite Generator",
+      "description": "Generate test suites (pytest, jest, or go_test) from application code. For React-artifact tests, use skill:react-test-writer instead.",
       "version": "1.5.0",
       "lifecycle": "active",
       "input":  {"type": "application_code", "schema": "schema:application-code:v1"},
@@ -173,6 +179,7 @@
     {
       "_id": "skill:react-test-writer",
       "name": "React Test Suite Generator",
+      "description": "Generate React test suites (Playwright, React Testing Library, or Vitest) from a react_artifact. Pairs with skill:leafygreen-ui to close the LeafyGreen → tests path.",
       "version": "1.0.0",
       "lifecycle": "active",
       "input":  {"type": "react_artifact",   "schema": "schema:react-artifact:v1"},
@@ -195,6 +202,7 @@
     {
       "_id": "skill:schema-review-v1",
       "name": "Schema Design Review (v1)",
+      "description": "Legacy schema review skill. Inactive — replaced by skill:schema-review (v2.1.0+) which produces a richer schema_recommendation including index strategies.",
       "version": "1.0.0",
       "lifecycle": "inactive",
       "input":  {"type": "workload_description",     "schema": "schema:workload-description:v1"},
