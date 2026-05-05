@@ -185,3 +185,29 @@ def test_seed_preserves_runs_collection(seeded, seed_module):
     after = client["skill_graph"]["runs"].count_documents({})
     client.close()
     assert after == before
+
+
+def test_log_tool_call_records_error_and_reraises(seeded, monkeypatch):
+    """When a tool raises, @log_tool_call must:
+       1) re-raise the exception (instrumentation must not swallow errors)
+       2) write a runs doc tagged with error = "<ExceptionClassName>"
+    """
+    import pytest
+
+    def boom(*a, **kw):
+        raise RuntimeError("simulated mongo failure")
+
+    # _active_skill is the helper get_skill_contract actually calls.
+    # Patching db.skills.find_one is unreliable because pymongo's
+    # Database.__getattr__ creates a fresh Collection each access.
+    monkeypatch.setattr(seeded, "_active_skill", boom)
+
+    with pytest.raises(RuntimeError, match="simulated mongo failure"):
+        _call(seeded.get_skill_contract, skill_id="skill:query-analysis")
+
+    client = MongoClient(os.environ["MONGODB_URI"])
+    runs = list(client["skill_graph"]["runs"].find({"tool": "get_skill_contract"}))
+    client.close()
+    assert len(runs) == 1
+    assert runs[0]["error"] == "RuntimeError"
+    assert runs[0]["params"] == {"skill_id": "skill:query-analysis"}

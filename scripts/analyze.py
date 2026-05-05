@@ -49,16 +49,21 @@ def _print_table(rows, headers):
         print(sep.join(str(c).ljust(w) for c, w in zip(r, widths)))
 
 
-def blog1_table(session_id: str | None = None) -> None:
-    """Per-tool token efficiency: avg/p50/p95 tokens returned, calls, errors."""
-    runs = _runs_collection()
+def compute_blog1(runs_col, session_id: str | None = None) -> list[dict]:
+    """Aggregation behind the Blog 1 table.
+
+    Returns one dict per tool with: tool, calls, errors, avg_tokens, p50, p95.
+    Sorted by avg_tokens descending. Pure function — no I/O beyond the
+    runs collection cursor — so tests can call it with a fixture-seeded
+    collection without touching the printer.
+    """
     match: dict = {}
     if session_id:
         match["session_id"] = session_id
 
     by_tool: dict[str, list[int]] = defaultdict(list)
     errors: dict[str, int] = defaultdict(int)
-    for d in runs.find(match, {"tool": 1, "tokens_returned": 1, "error": 1}):
+    for d in runs_col.find(match, {"tool": 1, "tokens_returned": 1, "error": 1}):
         by_tool[d["tool"]].append(d.get("tokens_returned") or 0)
         if d.get("error"):
             errors[d["tool"]] += 1
@@ -66,27 +71,28 @@ def blog1_table(session_id: str | None = None) -> None:
     rows = []
     for tool in sorted(by_tool, key=lambda t: -sum(by_tool[t]) / max(len(by_tool[t]), 1)):
         v = by_tool[tool]
-        rows.append([
-            tool,
-            len(v),
-            errors[tool],
-            round(sum(v) / len(v), 1),
-            _percentile(v, 50),
-            _percentile(v, 95),
-        ])
-    print(f"\n## Blog 1 — token efficiency per tool"
-          f"{f' (session={session_id})' if session_id else ''}\n")
-    _print_table(rows, ["tool", "calls", "errors", "avg_tokens", "p50", "p95"])
+        rows.append({
+            "tool": tool,
+            "calls": len(v),
+            "errors": errors[tool],
+            "avg_tokens": round(sum(v) / len(v), 1),
+            "p50": _percentile(v, 50),
+            "p95": _percentile(v, 95),
+        })
+    return rows
 
 
-def blog2_table(session_id: str | None = None) -> None:
-    """Per-session routing usage: route_task / validate_chain / search calls vs work calls."""
-    runs = _runs_collection()
+def compute_blog2(runs_col, session_id: str | None = None) -> list[dict]:
+    """Aggregation behind the Blog 2 table.
+
+    Returns one dict per session with: session, routing_calls, work_calls,
+    routing_ratio, errors, total_tokens. Sorted by session id.
+    """
     match = {}
     if session_id:
         match["session_id"] = session_id
     rows_by_session: dict[str, dict[str, int]] = defaultdict(lambda: {"routing": 0, "work": 0, "errors": 0, "tokens": 0})
-    for d in runs.find(match, {"tool": 1, "session_id": 1, "tokens_returned": 1, "error": 1}):
+    for d in runs_col.find(match, {"tool": 1, "session_id": 1, "tokens_returned": 1, "error": 1}):
         rec = rows_by_session[d.get("session_id", "unknown")]
         if d["tool"] in ROUTING_TOOLS:
             rec["routing"] += 1
@@ -101,10 +107,33 @@ def blog2_table(session_id: str | None = None) -> None:
         rec = rows_by_session[sess]
         total_calls = rec["routing"] + rec["work"]
         ratio = round(rec["routing"] / total_calls, 2) if total_calls else 0
-        rows.append([sess, rec["routing"], rec["work"], ratio, rec["errors"], rec["tokens"]])
+        rows.append({
+            "session": sess,
+            "routing_calls": rec["routing"],
+            "work_calls": rec["work"],
+            "routing_ratio": ratio,
+            "errors": rec["errors"],
+            "total_tokens": rec["tokens"],
+        })
+    return rows
+
+
+def blog1_table(session_id: str | None = None) -> None:
+    """Render the Blog 1 table to stdout."""
+    rows = compute_blog1(_runs_collection(), session_id)
+    print(f"\n## Blog 1 — token efficiency per tool"
+          f"{f' (session={session_id})' if session_id else ''}\n")
+    _print_table([list(r.values()) for r in rows],
+                 ["tool", "calls", "errors", "avg_tokens", "p50", "p95"])
+
+
+def blog2_table(session_id: str | None = None) -> None:
+    """Render the Blog 2 table to stdout."""
+    rows = compute_blog2(_runs_collection(), session_id)
     print(f"\n## Blog 2 — routing usage per session"
           f"{f' (filtered to {session_id})' if session_id else ''}\n")
-    _print_table(rows, ["session", "routing_calls", "work_calls", "routing_ratio", "errors", "total_tokens"])
+    _print_table([list(r.values()) for r in rows],
+                 ["session", "routing_calls", "work_calls", "routing_ratio", "errors", "total_tokens"])
 
 
 def main():
