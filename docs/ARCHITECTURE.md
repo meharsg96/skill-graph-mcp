@@ -31,13 +31,23 @@ Ten FastMCP tools wrap MongoDB queries:
   `get_tokens`, `get_components`, `get_layouts`, `validate_chain`,
   `traverse_dependencies`
 - v2 (contracts, routing, impact, tenants): `route_task`, `search_skills`,
-  `get_skill_instructions`, `impact_analysis`
+  `list_skills`, `get_skill_instructions`, `impact_analysis`
 
 **The load-bearing invariant:** every read tool filters by `lifecycle: "active"`
-so inactive skills are invisible to consumers. The four v2 tools enforce this
-in the same place — `route_task`'s and `impact_analysis`'s `$graphLookup`
-calls use `restrictSearchWithMatch: { lifecycle: "active" }`, and
-`search_skills` adds it to the find filter. Preserve this when adding tools.
+*by default* so inactive skills are invisible to consumers. The five v2 tools
+enforce this in the same place — `route_task`'s and `impact_analysis`'s
+`$graphLookup` calls use `restrictSearchWithMatch: { lifecycle: "active" }`,
+`search_skills` adds it to the find filter, `list_skills` defaults to
+`lifecycle="active"` and only includes inactive skills if the caller explicitly
+asks (`lifecycle="inactive"` or `lifecycle="any"`). Preserve this when adding
+tools.
+
+**Discovery vs search:** `search_skills` is text-index based — use it for
+ranked relevance against keywords. `list_skills` is declarative — use it for
+enumeration (`"every active skill"`, `"who consumes application_code?"`).
+The distinction was added in v2.1 after R1 found the agent reading
+`schema/skills.json` directly because text-index search couldn't answer
+"list everything" queries.
 
 ## 4. Contract layer (v2) — ABI shape
 

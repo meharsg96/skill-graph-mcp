@@ -112,7 +112,8 @@ traverse_dependencies(skill_id)
 
 # v2 — contracts, routing, impact, tenants
 route_task(target_output_type)                    # backward $graphLookup → ordered chain
-search_skills(query, limit=)                      # Mongo text-index search
+search_skills(query, limit=)                      # Mongo text-index search (ranked relevance)
+list_skills(lifecycle=, input_type=, output_type=)  # declarative enumeration (use this for "list everything")
 get_skill_instructions(skill_id)                  # read the skill's markdown body
 impact_analysis(skill_id)                         # direct + transitive consumers + incompatible edges
 ```
