@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 # Tag the SESSION_ID for everything that follows in this shell, then run
 # whatever command was passed. Every MCP tool call captured by server.py's
-# @log_tool_call decorator will land in db.runs with this session_id.
+# @log_tool_call decorator lands in db.runs with this session_id.
+#
+# Works for: in-process tool calls — `scripts/route.py`, `scripts/impact.py`,
+# any Python that imports `server` directly, or running `server.py` standalone
+# (the wrapped subprocess inherits the env).
+#
+# Does NOT propagate when an MCP host (e.g. `claude mcp add`, FastMCP `Client`)
+# spawns server.py: MCP's stdio spec hands subprocesses an empty env by
+# default, so SESSION_ID is dropped. For that case, list it explicitly in the
+# host's MCP server config (the `env: { "SESSION_ID": "..." }` block), or
+# launch via `scripts/mcp_host.py` (in-process — env crosses naturally).
 #
 # Usage:
 #     scripts/run_session.sh python server.py

@@ -130,6 +130,11 @@ transport does **not** forward parent env vars by default — you must list them
 explicitly in the host's MCP server config (`env: { "SESSION_ID": "..." }`).
 Without that, the auto fallback gives you per-process grouping for free.
 
+For ad-hoc end-to-end runs from a shell, `scripts/mcp_host.py` is a thin client
+that explicitly forwards `MONGODB_URI` and `SESSION_ID` through the stdio
+transport, so `SESSION_ID=foo scripts/run_session.sh python scripts/mcp_host.py
+route_task ui_components` produces a log entry tagged `session:foo`.
+
 The `runs` collection is created lazily and **never dropped on re-seed**, so
 historical sessions accumulate. Documents expire after 90 days via a TTL index.
 

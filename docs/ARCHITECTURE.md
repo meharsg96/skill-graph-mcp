@@ -111,6 +111,20 @@ would silently break grouping when MCP hosts spawn the server with empty env
 server process produces a stable, queryable session id even when no `SESSION_ID`
 is forwarded; an explicit `SESSION_ID` always wins when provided.
 
+**SESSION_ID propagation paths:**
+
+| Launch path | SESSION_ID source |
+|---|---|
+| `python server.py` standalone (env exported in shell) | inherits parent env ✅ |
+| `python scripts/route.py …` (in-process import) | inherits parent env ✅ |
+| `scripts/run_session.sh python server.py` | inherits via `exec` ✅ |
+| MCP host (`claude mcp add`, FastMCP `Client('server.py')`) | empty env by spec — auto fallback ⚠️ |
+| MCP host with explicit `env:` config block | inherits from forwarded env ✅ |
+| `scripts/mcp_host.py` (in-repo helper) | forwards `MONGODB_URI` + `SESSION_ID` explicitly ✅ |
+
+`scripts/mcp_host.py` exists specifically because the bare FastMCP `Client`
+path drops env. It uses `StdioTransport(env=…)` to opt in.
+
 ## Conventions
 
 - Skill IDs use the `skill:<slug>` namespace.
