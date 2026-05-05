@@ -11,6 +11,17 @@ pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
+Or with `uv`:
+```bash
+uv venv && source .venv/bin/activate
+uv pip install -r requirements-dev.txt
+```
+
+Every `python …` command in the docs assumes the venv is activated, or that
+you're using `./venv/bin/python …` or `uv run python …` explicitly. A bare
+`python` without an activated env misses pymongo and fastmcp. (`uv python`
+is the install-management subcommand, not the runner — use `uv run python`.)
+
 Tests need either Docker (for `testcontainers`) or a local Mongo on
 `mongodb://localhost:27017`. If `MONGODB_URI` is set in the environment, the
 test suite uses that instead of starting a container — useful for CI and for

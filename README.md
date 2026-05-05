@@ -10,14 +10,19 @@ Read the companion blog post: *[Typed Skill Graphs for LLM Orchestration with Mo
 
 ## Quick start
 
+Requires: **MongoDB 7.x+** running locally, **Python 3.10+**.
+
 ```bash
 git clone https://github.com/meharsg96/skill-graph-mcp.git
 cd skill-graph-mcp
 git checkout v2                         # latest release
 
-# Requires: MongoDB 7.x+ running locally, Python 3.10+
 cp .env.example .env                    # MONGODB_URI defaults to mongodb://localhost:27017
-pip install -r requirements.txt
+
+# Set up an isolated env. Pick one:
+python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+# or, with uv:
+# uv venv && uv pip install -r requirements.txt && source .venv/bin/activate
 
 python scripts/seed.py                  # Seed skills, edges, parameters
 python scripts/validate.py              # v1 plan-validation examples
@@ -36,6 +41,13 @@ python scripts/analyze.py --all                 # blog 1 + blog 2 tables
 python scripts/analyze.py --table blog2 \
        --session "$SESSION_ID"                  # one session at a time
 ```
+
+> **Heads up:** every `python …` command above must run inside the activated
+> venv (or via `./venv/bin/python …` / `uv run python …`). A bare `python`
+> without an activated env will hit `ModuleNotFoundError: No module named
+> 'pymongo'`. `uv python scripts/…` is the wrong command — that subcommand
+> manages Python installations; `uv run python scripts/…` is what executes
+> a script.
 
 ## What's in the box
 
