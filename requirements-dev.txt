@@ -1,4 +1,4 @@
 -r requirements.txt
 pytest>=8.0
 testcontainers[mongodb]>=4.0
-ruff>=0.4
+ruff>=0.15.12
