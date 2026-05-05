@@ -158,8 +158,12 @@ historical sessions accumulate. Documents expire after 90 days via a TTL index.
 | Tag | Blog | Adds |
 |-----|------|------|
 | [`v1`](https://github.com/meharsg96/skill-graph-mcp/tree/v1) | Your Agent Reads Around Your Skill Files | typed skill graph, 6 tools |
-| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill, **React test chain** for the LeafyGreen output |
+| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill, **React test chain**, **`skill:harness` self-documenting meta-skill** |
 | `v3` *(planned)* | TBD | artifact validation + repair |
+
+**v2.3.0 adds two things, both informed by R3:**
+- **`skill:harness`** — the system documents itself using its own pattern. Ask `get_skill_instructions(skill:harness)` for SESSION_ID conventions, TTL behavior, analyze.py recipes, archival, and pitfalls. The architecture eats its own dog food.
+- **Richer `get_skill_instructions`** — now returns markdown body + `line_count` + `accessibility_rules` + related skills (deps + direct consumers) + `source: "graph"` provenance. Strictly more useful than `Read`, so the agent has a real reason to prefer the graph path.
 
 To add your own parameterized skill to the graph (the question every reader
 asks after the series), see [docs/ADDING_A_SKILL.md](docs/ADDING_A_SKILL.md) —

@@ -200,6 +200,34 @@
       "skill_path": "skills/react-test-writer/SKILL.md"
     },
     {
+      "_id": "skill:harness",
+      "name": "Skill Graph Harness",
+      "description": "Self-documenting meta-skill: how to operate the skill-graph MCP server itself. Use get_skill_instructions(skill:harness) to learn about SESSION_ID conventions, TTL behavior, analyze.py recipes, mongodump archival, scope tradeoffs, and common pitfalls. Always reachable; queryable through the same tools as any other skill.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input":  {"type": "meta_query",            "schema": "schema:meta-query:v1"},
+      "output": {"type": "system_documentation",  "schema": "schema:system-documentation:v1"},
+      "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": [],
+      "domain_fields": {
+        "topics": [
+          "registering_the_server",
+          "scope_tradeoffs",
+          "session_id_conventions",
+          "auto_session_fallback",
+          "analyzing_runs",
+          "list_sessions",
+          "ttl_and_retention",
+          "archival_via_mongodump",
+          "common_pitfalls"
+        ],
+        "added_in": "v2.3.0",
+        "added_to_close": "User question: 'is this workflow part of the skill itself? if not shouldnt it be?' — yes; the harness now ships its own operating manual as a queryable skill, eating its own dog food"
+      },
+      "skill_path": "skills/harness/SKILL.md"
+    },
+    {
       "_id": "skill:schema-review-v1",
       "name": "Schema Design Review (v1)",
       "description": "Legacy schema review skill. Inactive — replaced by skill:schema-review (v2.1.0+) which produces a richer schema_recommendation including index strategies.",
