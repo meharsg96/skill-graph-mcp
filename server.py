@@ -102,6 +102,35 @@ def _tenant_params(skill_id: str, tenant: str) -> dict | None:
     return db.parameters.find_one({"skill_id": skill_id, "tenant": tenant})
 
 
+def _available_tenants(skill_id: str) -> list[str]:
+    """List tenant ids that have parameter docs for this skill.
+    Used to make 'no design tokens' / 'no components' errors actionable
+    instead of dead-ends — the agent gets back the next call to try."""
+    return sorted(db.parameters.distinct("tenant", {"skill_id": skill_id}))
+
+
+def _no_data_error(skill_id: str, kind: str, tenant: str | None) -> dict:
+    """Build an error response for retrieval tools that hint at the right
+    next call. `kind` is the data kind (e.g. 'design tokens', 'components',
+    'layouts') used in the error message."""
+    avail = _available_tenants(skill_id)
+    if tenant is not None and tenant not in avail:
+        if avail:
+            msg = (f"Skill '{skill_id}' has no {kind} for tenant '{tenant}'. "
+                   f"Available tenants: {avail}. Retry with one of those.")
+        else:
+            msg = (f"Skill '{skill_id}' has no {kind} (and no parameter docs "
+                   f"exist for this skill at all).")
+    elif tenant is None and avail:
+        msg = (f"Skill '{skill_id}' has no {kind} in its own domain_fields, "
+               f"but tenant-scoped parameter docs exist. "
+               f"Retry with tenant='{avail[0]}' "
+               f"(available tenants: {avail}).")
+    else:
+        msg = f"Skill '{skill_id}' has no {kind}"
+    return {"error": msg, "available_tenants": avail}
+
+
 # ---------- v1 tools (preserved; tenant arg added to retrieval tools) ----------
 
 @mcp.tool()
@@ -149,7 +178,7 @@ def get_tokens(skill_id: str, theme: str = None, tenant: str = None) -> dict:
         skill_name = (skill or {}).get("name", skill_id)
 
     if not tokens:
-        return {"error": f"Skill '{skill_id}' has no design tokens"}
+        return _no_data_error(skill_id, "design tokens", tenant)
 
     if theme is not None:
         themes = tokens.get("themes")
@@ -203,7 +232,7 @@ def get_components(skill_id: str, category: str = None, tenant: str = None) -> d
         skill_name = (skill or {}).get("name", skill_id)
 
     if not components:
-        return {"error": f"Skill '{skill_id}' has no components"}
+        return _no_data_error(skill_id, "components", tenant)
 
     if category is not None:
         if category not in components:
