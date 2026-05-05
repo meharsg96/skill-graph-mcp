@@ -6,13 +6,23 @@
       "description": "Analyze an application workload description to extract query patterns by access type (read-heavy, write-heavy, mixed). Entry point of the data-backed application chain.",
       "version": "1.0.0",
       "lifecycle": "active",
-      "input":  {"type": "workload_description", "schema": "schema:workload-description:v1"},
-      "output": {"type": "query_patterns",       "schema": "schema:query-patterns:v1"},
+      "input": {
+        "type": "workload_description",
+        "schema": "schema:workload-description:v1"
+      },
+      "output": {
+        "type": "query_patterns",
+        "schema": "schema:query-patterns:v1"
+      },
       "dependencies": [],
       "dependency_constraints": {},
       "parameter_sources": [],
       "domain_fields": {
-        "analysis_types": ["read_heavy", "write_heavy", "mixed"]
+        "analysis_types": [
+          "read_heavy",
+          "write_heavy",
+          "mixed"
+        ]
       },
       "skill_path": "skills/query-analysis/SKILL.md"
     },
@@ -22,17 +32,43 @@
       "description": "Recommend a schema design and indexing strategy given query patterns. Supports relational, document, and graph targets.",
       "version": "2.1.0",
       "lifecycle": "active",
-      "input":  {"type": "query_patterns",        "schema": "schema:query-patterns:v1"},
-      "output": {"type": "schema_recommendation", "schema": "schema:schema-recommendation:v2"},
-      "dependencies": ["skill:query-analysis"],
-      "dependency_constraints": {
-        "skill:query-analysis": {"version_range": ">=1.0.0 <2.0.0"}
+      "input": {
+        "type": "query_patterns",
+        "schema": "schema:query-patterns:v1"
       },
-      "parameter_sources": ["params:index-rules", "params:anti-patterns"],
+      "output": {
+        "type": "schema_recommendation",
+        "schema": "schema:schema-recommendation:v2"
+      },
+      "dependencies": [
+        "skill:query-analysis"
+      ],
+      "dependency_constraints": {
+        "skill:query-analysis": {
+          "version_range": ">=1.0.0 <2.0.0"
+        }
+      },
+      "parameter_sources": [
+        "params:index-rules",
+        "params:anti-patterns"
+      ],
       "domain_fields": {
-        "target_databases": ["relational", "document", "graph"],
-        "index_strategies": ["compound", "partial", "wildcard", "text", "vector"],
-        "anti_patterns": ["massive_arrays", "unbounded_growth"]
+        "target_databases": [
+          "relational",
+          "document",
+          "graph"
+        ],
+        "index_strategies": [
+          "compound",
+          "partial",
+          "wildcard",
+          "text",
+          "vector"
+        ],
+        "anti_patterns": [
+          "massive_arrays",
+          "unbounded_growth"
+        ]
       },
       "skill_path": "skills/schema-review/SKILL.md"
     },
@@ -42,16 +78,34 @@
       "description": "Generate application code (FastAPI, Express, or Gin) from a schema recommendation. Forks downstream into UI and test chains.",
       "version": "3.0.0",
       "lifecycle": "active",
-      "input":  {"type": "schema_recommendation", "schema": "schema:schema-recommendation:v2"},
-      "output": {"type": "application_code",      "schema": "schema:application-code:v1"},
-      "dependencies": ["skill:schema-review"],
+      "input": {
+        "type": "schema_recommendation",
+        "schema": "schema:schema-recommendation:v2"
+      },
+      "output": {
+        "type": "application_code",
+        "schema": "schema:application-code:v1"
+      },
+      "dependencies": [
+        "skill:schema-review"
+      ],
       "dependency_constraints": {
-        "skill:schema-review": {"version_range": ">=2.0.0 <3.0.0"}
+        "skill:schema-review": {
+          "version_range": ">=2.0.0 <3.0.0"
+        }
       },
       "parameter_sources": [],
       "domain_fields": {
-        "languages": ["python", "typescript", "go"],
-        "frameworks": ["fastapi", "express", "gin"]
+        "languages": [
+          "python",
+          "typescript",
+          "go"
+        ],
+        "frameworks": [
+          "fastapi",
+          "express",
+          "gin"
+        ]
       },
       "skill_path": "skills/code-gen/SKILL.md"
     },
@@ -61,68 +115,228 @@
       "description": "Generic React UI builder with per-deployment tenant overrides (e.g. client-a, client-b). Each tenant has its own design tokens and component overrides via the parameters collection. For MongoDB-branded UI, use skill:leafygreen-ui instead.",
       "version": "1.4.0",
       "lifecycle": "active",
-      "input":  {"type": "application_code", "schema": "schema:application-code:v1"},
-      "output": {"type": "ui_components",    "schema": "schema:ui-components:v1"},
-      "dependencies": ["skill:code-gen"],
-      "dependency_constraints": {
-        "skill:code-gen": {"version_range": ">=3.0.0 <4.0.0"}
+      "input": {
+        "type": "application_code",
+        "schema": "schema:application-code:v1"
       },
-      "parameter_sources": ["params:ui-builder:client-a", "params:ui-builder:client-b"],
+      "output": {
+        "type": "ui_components",
+        "schema": "schema:ui-components:v1"
+      },
+      "dependencies": [
+        "skill:code-gen"
+      ],
+      "dependency_constraints": {
+        "skill:code-gen": {
+          "version_range": ">=3.0.0 <4.0.0"
+        }
+      },
+      "parameter_sources": [
+        "params:ui-builder:client-a",
+        "params:ui-builder:client-b"
+      ],
       "domain_fields": {
         "component_library": "react",
         "design_tokens": {
           "themes": {
             "light": {
-              "primary":   "#2563EB",
+              "primary": "#2563EB",
               "secondary": "#7C3AED",
-              "bg":        "#FFFFFF",
-              "surface":   "#F8FAFC",
-              "text":      "#0F172A",
-              "muted":     "#64748B",
-              "border":    "#E2E8F0",
-              "danger":    "#DC2626",
-              "warning":   "#F59E0B",
-              "success":   "#16A34A"
+              "bg": "#FFFFFF",
+              "surface": "#F8FAFC",
+              "text": "#0F172A",
+              "muted": "#64748B",
+              "border": "#E2E8F0",
+              "danger": "#DC2626",
+              "warning": "#F59E0B",
+              "success": "#16A34A"
             },
             "dark": {
-              "primary":   "#60A5FA",
+              "primary": "#60A5FA",
               "secondary": "#A78BFA",
-              "bg":        "#0F172A",
-              "surface":   "#1E293B",
-              "text":      "#F8FAFC",
-              "muted":     "#94A3B8",
-              "border":    "#334155",
-              "danger":    "#F87171",
-              "warning":   "#FBBF24",
-              "success":   "#4ADE80"
+              "bg": "#0F172A",
+              "surface": "#1E293B",
+              "text": "#F8FAFC",
+              "muted": "#94A3B8",
+              "border": "#334155",
+              "danger": "#F87171",
+              "warning": "#FBBF24",
+              "success": "#4ADE80"
             }
           },
           "spacing_unit": 4,
-          "type_scale": [12, 14, 16, 20, 24, 32]
+          "type_scale": [
+            12,
+            14,
+            16,
+            20,
+            24,
+            32
+          ]
         },
-        "breakpoints": {"sm": 640, "md": 768, "lg": 1024, "xl": 1280},
+        "breakpoints": {
+          "sm": 640,
+          "md": 768,
+          "lg": 1024,
+          "xl": 1280
+        },
         "components": {
           "buttons": [
-            {"variant": "primary",   "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled","loading"]},
-            {"variant": "secondary", "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled"]},
-            {"variant": "ghost",     "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled"]},
-            {"variant": "danger",    "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled","loading"]}
+            {
+              "variant": "primary",
+              "sizes": [
+                "sm",
+                "md",
+                "lg"
+              ],
+              "states": [
+                "default",
+                "hover",
+                "active",
+                "disabled",
+                "loading"
+              ]
+            },
+            {
+              "variant": "secondary",
+              "sizes": [
+                "sm",
+                "md",
+                "lg"
+              ],
+              "states": [
+                "default",
+                "hover",
+                "active",
+                "disabled"
+              ]
+            },
+            {
+              "variant": "ghost",
+              "sizes": [
+                "sm",
+                "md",
+                "lg"
+              ],
+              "states": [
+                "default",
+                "hover",
+                "active",
+                "disabled"
+              ]
+            },
+            {
+              "variant": "danger",
+              "sizes": [
+                "sm",
+                "md",
+                "lg"
+              ],
+              "states": [
+                "default",
+                "hover",
+                "active",
+                "disabled",
+                "loading"
+              ]
+            }
           ],
           "inputs": [
-            {"variant": "text",     "sizes": ["sm","md","lg"], "states": ["default","focus","error","disabled"]},
-            {"variant": "textarea", "sizes": ["md","lg"],      "states": ["default","focus","error","disabled"]},
-            {"variant": "select",   "sizes": ["sm","md","lg"], "states": ["default","focus","open","error","disabled"]},
-            {"variant": "checkbox", "sizes": ["sm","md"],      "states": ["unchecked","checked","indeterminate","disabled"]}
+            {
+              "variant": "text",
+              "sizes": [
+                "sm",
+                "md",
+                "lg"
+              ],
+              "states": [
+                "default",
+                "focus",
+                "error",
+                "disabled"
+              ]
+            },
+            {
+              "variant": "textarea",
+              "sizes": [
+                "md",
+                "lg"
+              ],
+              "states": [
+                "default",
+                "focus",
+                "error",
+                "disabled"
+              ]
+            },
+            {
+              "variant": "select",
+              "sizes": [
+                "sm",
+                "md",
+                "lg"
+              ],
+              "states": [
+                "default",
+                "focus",
+                "open",
+                "error",
+                "disabled"
+              ]
+            },
+            {
+              "variant": "checkbox",
+              "sizes": [
+                "sm",
+                "md"
+              ],
+              "states": [
+                "unchecked",
+                "checked",
+                "indeterminate",
+                "disabled"
+              ]
+            }
           ],
           "cards": [
-            {"variant": "elevated", "padding": ["compact","comfortable"]},
-            {"variant": "outlined", "padding": ["compact","comfortable"]},
-            {"variant": "filled",   "padding": ["compact","comfortable"]}
+            {
+              "variant": "elevated",
+              "padding": [
+                "compact",
+                "comfortable"
+              ]
+            },
+            {
+              "variant": "outlined",
+              "padding": [
+                "compact",
+                "comfortable"
+              ]
+            },
+            {
+              "variant": "filled",
+              "padding": [
+                "compact",
+                "comfortable"
+              ]
+            }
           ],
           "forms": [
-            {"variant": "stacked",    "spacing": "comfortable", "label_position": "top"},
-            {"variant": "inline",     "spacing": "compact",     "label_position": "left"},
-            {"variant": "two-column", "spacing": "comfortable", "label_position": "top"}
+            {
+              "variant": "stacked",
+              "spacing": "comfortable",
+              "label_position": "top"
+            },
+            {
+              "variant": "inline",
+              "spacing": "compact",
+              "label_position": "left"
+            },
+            {
+              "variant": "two-column",
+              "spacing": "comfortable",
+              "label_position": "top"
+            }
           ]
         }
       },
@@ -131,14 +345,22 @@
     {
       "_id": "skill:leafygreen-ui",
       "name": "LeafyGreen UI Builder",
-      "description": "MongoDB's official LeafyGreen design system as a parameterized skill. Single canonical 'default' tenant carries the full design system; this skill does NOT support per-deployment overrides like client-a/client-b — for those, use skill:ui-builder. Pairs with skill:react-test-writer for tested LeafyGreen artifacts.",
+      "description": "MongoDB's official LeafyGreen design system as a parameterized skill. Single canonical 'default' tenant carries the full design system; this skill does NOT support per-deployment overrides like client-a/client-b \u2014 for those, use skill:ui-builder. Pairs with skill:react-test-writer for tested LeafyGreen artifacts.",
       "version": "1.0.0",
       "lifecycle": "active",
-      "input":  {"type": "ui_requirements", "schema": "schema:ui-requirements:v1"},
-      "output": {"type": "react_artifact",  "schema": "schema:react-artifact:v1"},
+      "input": {
+        "type": "ui_requirements",
+        "schema": "schema:ui-requirements:v1"
+      },
+      "output": {
+        "type": "react_artifact",
+        "schema": "schema:react-artifact:v1"
+      },
       "dependencies": [],
       "dependency_constraints": {},
-      "parameter_sources": ["params:leafygreen-ui:default"],
+      "parameter_sources": [
+        "params:leafygreen-ui:default"
+      ],
       "domain_fields": {
         "design_system": "leafygreen",
         "design_system_source": "https://github.com/mongodb/leafygreen-ui",
@@ -163,39 +385,79 @@
       "description": "Generate test suites (pytest, jest, or go_test) from application code. For React-artifact tests, use skill:react-test-writer instead.",
       "version": "1.5.0",
       "lifecycle": "active",
-      "input":  {"type": "application_code", "schema": "schema:application-code:v1"},
-      "output": {"type": "test_suite",       "schema": "schema:test-suite:v1"},
-      "dependencies": ["skill:code-gen"],
+      "input": {
+        "type": "application_code",
+        "schema": "schema:application-code:v1"
+      },
+      "output": {
+        "type": "test_suite",
+        "schema": "schema:test-suite:v1"
+      },
+      "dependencies": [
+        "skill:code-gen"
+      ],
       "dependency_constraints": {
-        "skill:code-gen": {"version_range": ">=3.0.0 <4.0.0"}
+        "skill:code-gen": {
+          "version_range": ">=3.0.0 <4.0.0"
+        }
       },
       "parameter_sources": [],
       "domain_fields": {
-        "test_frameworks": ["pytest", "jest", "go_test"],
-        "coverage_targets": {"line": 80, "branch": 70}
+        "test_frameworks": [
+          "pytest",
+          "jest",
+          "go_test"
+        ],
+        "coverage_targets": {
+          "line": 80,
+          "branch": 70
+        }
       },
       "skill_path": "skills/test-writer/SKILL.md"
     },
     {
       "_id": "skill:react-test-writer",
       "name": "React Test Suite Generator",
-      "description": "Generate React test suites (Playwright, React Testing Library, or Vitest) from a react_artifact. Pairs with skill:leafygreen-ui to close the LeafyGreen → tests path.",
+      "description": "Generate React test suites (Playwright, React Testing Library, or Vitest) from a react_artifact. Pairs with skill:leafygreen-ui to close the LeafyGreen \u2192 tests path.",
       "version": "1.0.0",
       "lifecycle": "active",
-      "input":  {"type": "react_artifact",   "schema": "schema:react-artifact:v1"},
-      "output": {"type": "react_test_suite", "schema": "schema:react-test-suite:v1"},
-      "dependencies": ["skill:leafygreen-ui"],
+      "input": {
+        "type": "react_artifact",
+        "schema": "schema:react-artifact:v1"
+      },
+      "output": {
+        "type": "react_test_suite",
+        "schema": "schema:react-test-suite:v1"
+      },
+      "dependencies": [
+        "skill:leafygreen-ui"
+      ],
       "dependency_constraints": {
-        "skill:leafygreen-ui": {"version_range": ">=1.0.0 <2.0.0"}
+        "skill:leafygreen-ui": {
+          "version_range": ">=1.0.0 <2.0.0"
+        }
       },
       "parameter_sources": [],
       "domain_fields": {
-        "test_frameworks": ["playwright", "react_testing_library", "vitest"],
+        "test_frameworks": [
+          "playwright",
+          "react_testing_library",
+          "vitest"
+        ],
         "framework_default": "playwright",
-        "coverage_targets": {"interaction": 90, "render": 100, "accessibility": 100},
-        "test_categories": ["render", "interaction", "accessibility", "visual_regression"],
+        "coverage_targets": {
+          "interaction": 90,
+          "render": 100,
+          "accessibility": 100
+        },
+        "test_categories": [
+          "render",
+          "interaction",
+          "accessibility",
+          "visual_regression"
+        ],
         "added_in": "v2.2.0",
-        "added_to_close": "R2 finding F5 — react_artifact had no path to a test_suite; agent flagged it twice unprompted"
+        "added_to_close": "R2 finding F5 \u2014 react_artifact had no path to a test_suite; agent flagged it twice unprompted"
       },
       "skill_path": "skills/react-test-writer/SKILL.md"
     },
@@ -205,8 +467,14 @@
       "description": "Self-documenting meta-skill: how to operate the skill-graph MCP server itself. Use get_skill_instructions(skill:harness) to learn about SESSION_ID conventions, TTL behavior, analyze.py recipes, mongodump archival, scope tradeoffs, and common pitfalls. Always reachable; queryable through the same tools as any other skill.",
       "version": "1.0.0",
       "lifecycle": "active",
-      "input":  {"type": "meta_query",            "schema": "schema:meta-query:v1"},
-      "output": {"type": "system_documentation",  "schema": "schema:system-documentation:v1"},
+      "input": {
+        "type": "meta_query",
+        "schema": "schema:meta-query:v1"
+      },
+      "output": {
+        "type": "system_documentation",
+        "schema": "schema:system-documentation:v1"
+      },
       "dependencies": [],
       "dependency_constraints": {},
       "parameter_sources": [],
@@ -223,23 +491,32 @@
           "common_pitfalls"
         ],
         "added_in": "v2.3.0",
-        "added_to_close": "User question: 'is this workflow part of the skill itself? if not shouldnt it be?' — yes; the harness now ships its own operating manual as a queryable skill, eating its own dog food"
+        "added_to_close": "User question: 'is this workflow part of the skill itself? if not shouldnt it be?' \u2014 yes; the harness now ships its own operating manual as a queryable skill, eating its own dog food"
       },
       "skill_path": "skills/harness/SKILL.md"
     },
     {
       "_id": "skill:schema-review-v1",
       "name": "Schema Design Review (v1)",
-      "description": "Legacy schema review skill. Inactive — replaced by skill:schema-review (v2.1.0+) which produces a richer schema_recommendation including index strategies.",
+      "description": "Legacy schema review skill. Inactive \u2014 replaced by skill:schema-review (v2.1.0+) which produces a richer schema_recommendation including index strategies.",
       "version": "1.0.0",
       "lifecycle": "inactive",
-      "input":  {"type": "workload_description",     "schema": "schema:workload-description:v1"},
-      "output": {"type": "schema_recommendation_v1", "schema": "schema:schema-recommendation:v1"},
+      "input": {
+        "type": "workload_description",
+        "schema": "schema:workload-description:v1"
+      },
+      "output": {
+        "type": "schema_recommendation_v1",
+        "schema": "schema:schema-recommendation:v1"
+      },
       "dependencies": [],
       "dependency_constraints": {},
       "parameter_sources": [],
       "domain_fields": {
-        "target_databases": ["relational", "document"]
+        "target_databases": [
+          "relational",
+          "document"
+        ]
       },
       "skill_path": "skills/schema-review-v1/SKILL.md",
       "replaced_by": "skill:schema-review"

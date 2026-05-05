@@ -53,6 +53,8 @@ This repo is a minimal pattern demo, not a framework. Three layers, intentionall
 
 9. **v2.3.0 self-documenting meta-skill + richer instructions** — `skill:harness` (input=`meta_query`, output=`system_documentation`) ships the operating manual as a queryable skill. `get_skill_instructions` now returns markdown content + `line_count` + `accessibility_rules` + `related.{dependencies, direct_consumers}` + `source: "graph"` — a strict superset of what `Read` provides, so the agent has a real reason to prefer the graph path. Closes R3's F9 (zero `get_skill_instructions` usage in R1/R2/R3 traced to insufficient response richness). `description` added to the text index for `search_skills`.
 
+10. **v2.4.0 preferences collection** — new `db.preferences` collection separate from `parameters`. Parameters carry data overrides (tokens, components) that change per tenant; preferences carry policy/style/conventions that change per owner. Different lifecycles, different access patterns, different indexes. Schema requires `owner`, `scope` (skill|category|global), `category`, `name`, `version`. Seeded with one example: `pref:owner:lg-flavour-not-cage` (the LG-flavour-not-cage policy on `skill:leafygreen-ui`). Forward-compatible with future per-owner Queryable Encryption (no text indexes on policy body, equality-only on indexed fields).
+
 ## Conventions
 
 - Skill IDs use the `skill:<slug>` namespace; preserve this when adding fixtures.
