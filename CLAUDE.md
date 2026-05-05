@@ -51,6 +51,8 @@ This repo is a minimal pattern demo, not a framework. Three layers, intentionall
 
 8. **v2.2.0 React test chain** — `skill:react-test-writer` (input=`react_artifact`, output=`react_test_suite`) closes the dead-end LeafyGreen had in v2.1.0. Sibling to `skill:test-writer` rather than a union-type extension. Added because R2's agent flagged the gap twice unprompted (`notes/r2-leafygreen.md` F5). The architecture acting as a design tool: agent observation → typed schema change.
 
+9. **v2.3.0 self-documenting meta-skill + richer instructions** — `skill:harness` (input=`meta_query`, output=`system_documentation`) ships the operating manual as a queryable skill. `get_skill_instructions` now returns markdown content + `line_count` + `accessibility_rules` + `related.{dependencies, direct_consumers}` + `source: "graph"` — a strict superset of what `Read` provides, so the agent has a real reason to prefer the graph path. Closes R3's F9 (zero `get_skill_instructions` usage in R1/R2/R3 traced to insufficient response richness). `description` added to the text index for `search_skills`.
+
 ## Conventions
 
 - Skill IDs use the `skill:<slug>` namespace; preserve this when adding fixtures.

@@ -109,8 +109,15 @@ def seed():
     db.skills.create_index("output_type")
     db.skills.create_index("output.type")
     db.skills.create_index("input.type")
-    # Text index for search_skills (v2)
-    db.skills.create_index([("name", "text"), ("domain_fields", "text")])
+    # Text index for search_skills (v2). v2.3.0 added `description` to
+    # the indexed fields — descriptions became the primary disambiguation
+    # surface in v2.2.x (F6 fix), but search_skills couldn't find skills
+    # by description until now.
+    db.skills.create_index([
+        ("name", "text"),
+        ("description", "text"),
+        ("domain_fields", "text"),
+    ])
 
     db.edges.create_index("from_skill")
     db.edges.create_index("to_skill")

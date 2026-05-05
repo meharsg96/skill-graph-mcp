@@ -514,33 +514,76 @@ def list_skills(
 @mcp.tool()
 @log_tool_call
 def get_skill_instructions(skill_id: str) -> dict:
-    """Return the skill's instruction markdown (`skill_path`).
+    """Return the skill's instruction markdown plus graph-side context.
 
-    Bounded — does not traverse. Returns the file body if present, or a
-    structured error if the file is missing or the skill is unknown.
+    Strictly more useful than reading `skill_path` directly:
+      - `content` — the SKILL.md body (same as `Read` would return)
+      - `line_count` — total lines so callers can cite SKILL.md:N anchors
+        without having to re-count
+      - `accessibility_rules` — surfaced from `domain_fields` so the
+        agent gets WCAG / a11y constraints in the same response
+      - `dependencies` and `direct_consumers` — graph relationships
+        that `Read` cannot give without a separate query
+      - `source: "graph"` — provenance marker; the call is recorded in
+        `db.runs` for the audit trail
+
+    Bounded — does not traverse beyond direct consumers. Refuses any
+    `skill_path` that escapes the repository root.
     """
-    skill = _active_skill(skill_id, {"name": 1, "skill_path": 1})
+    skill = _active_skill(
+        skill_id,
+        {"name": 1, "skill_path": 1, "domain_fields.accessibility_rules": 1,
+         "dependencies": 1, "input_type": 1, "output_type": 1},
+    )
     if not skill:
         return {"error": f"Skill '{skill_id}' not found or not active"}
     rel = skill.get("skill_path")
     if not rel:
         return {"error": f"Skill '{skill_id}' has no skill_path"}
     path = (REPO_ROOT / rel).resolve()
-    # Hard guard: refuse paths that escape the repo root
     try:
         path.relative_to(REPO_ROOT)
     except ValueError:
         return {"error": f"skill_path '{rel}' escapes the repository root"}
+
+    accessibility_rules = (
+        skill.get("domain_fields", {}).get("accessibility_rules") or []
+    )
+
+    # Direct consumers — skills whose input_type matches this skill's output_type.
+    direct_consumers = []
+    if skill.get("output_type"):
+        for c in db.skills.find(
+            {"input_type": skill["output_type"], "lifecycle": "active",
+             "_id": {"$ne": skill_id}},
+            {"name": 1},
+        ):
+            direct_consumers.append({"_id": c["_id"], "name": c["name"]})
+
+    related = {
+        "dependencies": skill.get("dependencies", []),
+        "direct_consumers": direct_consumers,
+    }
+
     if not path.is_file():
         return {
             "skill": skill["name"],
             "skill_path": rel,
+            "source": "graph",
             "error": "instruction file not present in this checkout",
+            "accessibility_rules": accessibility_rules,
+            "related": related,
         }
+
+    text = path.read_text()
     return {
         "skill": skill["name"],
         "skill_path": rel,
-        "content": path.read_text(),
+        "source": "graph",
+        "content": text,
+        "line_count": text.count("\n") + (0 if text.endswith("\n") else 1),
+        "accessibility_rules": accessibility_rules,
+        "related": related,
     }
 
 
