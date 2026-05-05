@@ -84,6 +84,18 @@ Responses include a `source` field (`parameters[<tenant>]` or
 `skill_default`) so callers can reason about which path was taken without
 repeating the lookup.
 
+The `tenant` field carries two roles by convention:
+
+- `tenant="default"` — the skill's canonical design system / config (e.g.
+  LeafyGreen's full token set lives in `params:leafygreen-ui:default`)
+- any other value — a per-deployment override (e.g. `client-a`, `client-b`)
+
+`get_components`'s `parameters[tenant].components` shape can be either the
+flat single-level form used by `skill:ui-builder` (`{buttons: [...]}`) or
+LeafyGreen's two-level form (`{categories: {form: {button: {...}}}}`).
+The tool unwraps `categories` if present so callers see the same outer
+shape for both.
+
 ## 6. Edges collection
 
 Used by `impact_analysis` to surface explicit incompatibilities flagged with

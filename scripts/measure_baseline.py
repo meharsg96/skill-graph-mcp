@@ -54,6 +54,16 @@ MODELED_MANIFEST: dict[str, list[str]] = {
     "6. compare client-a vs client-b tokens":  [],
     "7. what broke schema-review-v1":          ["schema/skills.json"],
     "8. plan chain to test_suite, validate":   ["schema/skills.json"],
+    # v2.1.0 LeafyGreen prompts. The bundle's structured config (tokens,
+    # components, contract, patterns) is what an agent without MCP access
+    # would have to load to answer LeafyGreen-specific questions.
+    "9. atlas-style dark login (LeafyGreen)":  ["schema/skills.json", "schema/parameters.json",
+                                                 "skills/leafygreen/SKILL.md",
+                                                 "skills/leafygreen/graph/tokens.json",
+                                                 "skills/leafygreen/graph/components.json"],
+    "10. WCAG check on LeafyGreen primary":     ["schema/skills.json",
+                                                 "skills/leafygreen/SKILL.md",
+                                                 "skills/leafygreen/graph/tokens.json"],
 }
 
 

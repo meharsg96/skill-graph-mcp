@@ -169,22 +169,41 @@ def get_tokens(skill_id: str, theme: str = None, tenant: str = None) -> dict:
 def get_components(skill_id: str, category: str = None, tenant: str = None) -> dict:
     """Get component definitions for a skill, optionally filtered to one category.
 
-    Tenant overrides (e.g. `button_radius`, `input_style`) come from the
-    matching `parameters` document and are attached as a separate
-    `overrides` key in the response. Component variants themselves come
-    from the skill's `domain_fields.components`.
-    """
-    skill = _active_skill(skill_id, {"name": 1, "domain_fields.components": 1})
-    if not skill:
-        return {"error": f"Skill '{skill_id}' not found or not active"}
-    components = skill.get("domain_fields", {}).get("components")
-    if not components:
-        return {"error": f"Skill '{skill_id}' has no components"}
+    Source precedence when `tenant` is given:
+      1. parameters[tenant].components — full component spec (e.g. LeafyGreen)
+      2. skill.domain_fields.components — fallback
 
+    parameters[tenant].component_overrides (small per-skill overrides like
+    `button_radius`) are always attached as a separate `overrides` key.
+
+    The shape of `categories` may differ by source: the synthetic
+    ui-builder uses flat `{buttons: [variants…]}`; LeafyGreen's parameter
+    doc uses a two-level `categories.{form,layout,…}.{button,toggle,…}`.
+    Both are returned faithfully.
+    """
+    components = None
     overrides = None
+    source = "skill_default"
     if tenant is not None:
         p = _tenant_params(skill_id, tenant)
-        overrides = (p or {}).get("component_overrides")
+        if p:
+            if "components" in p:
+                components = p["components"].get("categories", p["components"])
+                source = f"parameters[{tenant}]"
+            overrides = p.get("component_overrides")
+
+    if components is None:
+        skill = _active_skill(skill_id, {"name": 1, "domain_fields.components": 1})
+        if not skill:
+            return {"error": f"Skill '{skill_id}' not found or not active"}
+        components = skill.get("domain_fields", {}).get("components")
+        skill_name = skill["name"]
+    else:
+        skill = _active_skill(skill_id, {"name": 1})
+        skill_name = (skill or {}).get("name", skill_id)
+
+    if not components:
+        return {"error": f"Skill '{skill_id}' has no components"}
 
     if category is not None:
         if category not in components:
@@ -192,13 +211,13 @@ def get_components(skill_id: str, category: str = None, tenant: str = None) -> d
                 "error": f"Category '{category}' not defined",
                 "available_categories": sorted(components.keys()),
             }
-        result = {"skill": skill["name"], "category": category, "variants": components[category]}
+        result = {"skill": skill_name, "source": source, "category": category, "variants": components[category]}
         if overrides is not None:
             result["overrides"] = overrides
             result["tenant"] = tenant
         return result
 
-    result = {"skill": skill["name"], "categories": sorted(components.keys())}
+    result = {"skill": skill_name, "source": source, "categories": sorted(components.keys())}
     if overrides is not None:
         result["overrides"] = overrides
         result["tenant"] = tenant

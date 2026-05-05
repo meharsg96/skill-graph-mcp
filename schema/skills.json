@@ -125,6 +125,34 @@
       "skill_path": "skills/ui-builder/SKILL.md"
     },
     {
+      "_id": "skill:leafygreen-ui",
+      "name": "LeafyGreen UI Builder",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input":  {"type": "ui_requirements", "schema": "schema:ui-requirements:v1"},
+      "output": {"type": "react_artifact",  "schema": "schema:react-artifact:v1"},
+      "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": ["params:leafygreen-ui:default"],
+      "domain_fields": {
+        "design_system": "leafygreen",
+        "design_system_source": "https://github.com/mongodb/leafygreen-ui",
+        "artifact_format": "react_jsx",
+        "rendering_strategy": "css_custom_properties",
+        "rendering_note": "LeafyGreen uses Emotion CSS-in-JS which is unavailable in artifact environments. This skill encodes the full design system as CSS custom properties and Tailwind-compatible patterns.",
+        "font_fallback_note": "Euclid Circular A is not available on CDN. The system font stack matches its metrics.",
+        "accessibility_rules": [
+          {
+            "id": "no-green-base-on-white",
+            "rule": "green.base (#00ED64) must NEVER be used for text on white",
+            "reason": "fails WCAG AA contrast",
+            "use_instead": "green.dark2 (#00684A)"
+          }
+        ]
+      },
+      "skill_path": "skills/leafygreen/SKILL.md"
+    },
+    {
       "_id": "skill:test-writer",
       "name": "Test Suite Generator",
       "version": "1.5.0",

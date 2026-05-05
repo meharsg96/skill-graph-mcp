@@ -45,7 +45,9 @@ This repo is a minimal pattern demo, not a framework. Three layers, intentionall
 
 5. **v2 Contract layer (ABI shape)** — Skill docs carry `input/output {type, schema}` blocks, semver versions, `dependency_constraints`, and `parameter_sources`. `seed.py` derives top-level `input_type` / `output_type` from `input.type` / `output.type` so v1 tools keep working unchanged. `tests/test_v1_compat.py` enforces this. See `docs/MIGRATION_v1_v2.md`.
 
-6. **v2 Tenant precedence** — `get_tokens` / `get_components` / `get_layouts` accept `tenant=`. Lookup order: matching `parameters` document wins → skill's `domain_fields` is the fallback. Responses include a `source` field (`parameters[<tenant>]` or `skill_default`).
+6. **v2 Tenant precedence** — `get_tokens` / `get_components` / `get_layouts` accept `tenant=`. Lookup order: matching `parameters` document wins → skill's `domain_fields` is the fallback. Responses include a `source` field (`parameters[<tenant>]` or `skill_default`). `tenant="default"` carries the skill's canonical design system (e.g. LeafyGreen); other values are per-deployment overrides (e.g. `client-a`, `client-b`).
+
+7. **v2.1.0 LeafyGreen example** — `skill:leafygreen-ui` is the real-world MongoDB design system as a parameterized skill. Full tokens + 60-component spec live in `params:leafygreen-ui:default`. Demonstrates the architecture against a non-trivial design system; `skills/leafygreen/` carries the original SKILL.md + helper script (the helper agents-bypass demo from Blog 1). Adding it grew the modeled file-read baseline from 15,492 to 60,135 tokens vs unchanged 3,675 graph-path → ratio 4.22× → 16.36×. See `notes/r1-results.md`.
 
 ## Conventions
 

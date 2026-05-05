@@ -158,8 +158,17 @@ historical sessions accumulate. Documents expire after 90 days via a TTL index.
 | Tag | Blog | Adds |
 |-----|------|------|
 | [`v1`](https://github.com/meharsg96/skill-graph-mcp/tree/v1) | Your Agent Reads Around Your Skill Files | typed skill graph, 6 tools |
-| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params |
+| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill |
 | `v3` *(planned)* | TBD | artifact validation + repair |
+
+`v2.1.0` adds [`skill:leafygreen-ui`](skills/leafygreen/SKILL.md) — MongoDB's
+own design system as a parameterized skill graph node, with the full
+[LeafyGreen UI](https://github.com/mongodb/leafygreen-ui) tokens and
+component spec served through `get_tokens(theme=)` and
+`get_components(category=)` exactly the way the architecture intends.
+Adding it pushed the graph-path-vs-file-read efficiency ratio from 4.22×
+to **16.36×** — the demo-system bloat that the graph path sidesteps grows
+faster than the per-call cost of querying it.
 
 To upgrade in place: `git fetch --tags && git checkout v2`. v1 callers need
 zero changes — see [docs/MIGRATION_v1_v2.md](docs/MIGRATION_v1_v2.md).
