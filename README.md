@@ -13,33 +13,51 @@ Read the companion blog post: *[Typed Skill Graphs for LLM Orchestration with Mo
 ```bash
 git clone https://github.com/meharsg96/skill-graph-mcp.git
 cd skill-graph-mcp
-git checkout v1                         # pin to the Blog 1 release
+git checkout v2                         # latest release
 
 # Requires: MongoDB 7.x+ running locally, Python 3.10+
 cp .env.example .env                    # MONGODB_URI defaults to mongodb://localhost:27017
 pip install -r requirements.txt
 
-python scripts/seed.py                  # Seed the database
-python scripts/validate.py              # Run validation examples
+python scripts/seed.py                  # Seed skills, edges, parameters
+python scripts/validate.py              # v1 plan-validation examples
+python scripts/route.py ui_components   # v2: walk dependencies → ordered chain
+python scripts/impact.py skill:schema-review   # v2: who breaks if this changes?
 python server.py                        # Start the MCP server
 
 # Or use mongosh
 mongosh < scripts/queries.js
 ```
 
+After running tools, summarise the captured `db.runs` log:
+
+```bash
+python scripts/analyze.py --all                 # blog 1 + blog 2 tables
+python scripts/analyze.py --table blog2 \
+       --session "$SESSION_ID"                  # one session at a time
+```
+
 ## What's in the box
 
 ```
 skill-graph-mcp/
-├── server.py              # MCP server — the graph gateway (6 tools, instrumented)
+├── server.py              # MCP server — 10 tools, instrumented
 ├── schema/
-│   └── skills.json        # 6 skills (5 active, 1 inactive) + 5 edges
+│   ├── skills.json        # 6 skills (5 active, 1 inactive) + 5 edges (ABI shape)
+│   └── parameters.json    # tenant overrides (client-a, client-b)
 ├── scripts/
-│   ├── seed.py            # Seeds MongoDB with schema validation; preserves runs collection
+│   ├── seed.py            # Seeds skills + edges + parameters; preserves runs
+│   ├── seed_tenants.py    # Idempotent re-seed of just the parameters collection
 │   ├── validate.py        # Plan validation with $graphLookup
+│   ├── route.py           # CLI wrapper for route_task
+│   ├── impact.py          # CLI wrapper for impact_analysis
+│   ├── analyze.py         # Renders the blog measurement tables from db.runs
+│   ├── run_session.sh     # Tags SESSION_ID for everything that follows
 │   └── queries.js         # mongosh examples
-├── tests/                 # pytest smoke + bug-fix invariants
-├── docs/ARCHITECTURE.md   # the load-bearing invariants
+├── tests/                 # pytest — 39 tests across v1 + v2
+├── docs/
+│   ├── ARCHITECTURE.md    # load-bearing invariants
+│   └── MIGRATION_v1_v2.md # what changed; why v1 callers need zero changes
 └── README.md
 ```
 
@@ -69,15 +87,22 @@ Inactive skills never appear in results. Type mismatches are caught before execu
 
 ## MCP server
 
-`server.py` exposes six tools backed by MongoDB. These are semantic graph operations, not raw database access:
+`server.py` exposes ten tools backed by MongoDB. These are semantic graph operations, not raw database access:
 
 ```
-get_skill_contract(skill_id)           # base contract for a skill
-get_tokens(skill_id, theme)            # design tokens, filtered
-get_components(skill_id, category)     # domain fields, filtered
-get_layouts(skill_id, breakpoint)      # layout config, filtered
-validate_chain(skill_ids)              # type + lifecycle + dependency check
-traverse_dependencies(skill_id)        # $graphLookup dependency closure
+# v1 — parameter retrieval, validation, traversal
+get_skill_contract(skill_id)
+get_tokens(skill_id, theme=, tenant=)             # tenant overrides design tokens
+get_components(skill_id, category=, tenant=)       # tenant attaches component overrides
+get_layouts(skill_id, breakpoint=, tenant=)
+validate_chain(skill_ids)
+traverse_dependencies(skill_id)
+
+# v2 — contracts, routing, impact, tenants
+route_task(target_output_type)                    # backward $graphLookup → ordered chain
+search_skills(query, limit=)                      # Mongo text-index search
+get_skill_instructions(skill_id)                  # read the skill's markdown body
+impact_analysis(skill_id)                         # direct + transitive consumers + incompatible edges
 ```
 
 To connect to Claude Code:
@@ -113,8 +138,11 @@ historical sessions accumulate. Documents expire after 90 days via a TTL index.
 | Tag | Blog | Adds |
 |-----|------|------|
 | [`v1`](https://github.com/meharsg96/skill-graph-mcp/tree/v1) | Your Agent Reads Around Your Skill Files | typed skill graph, 6 tools |
-| `v2` *(in progress)* | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params |
+| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params |
 | `v3` *(planned)* | TBD | artifact validation + repair |
+
+To upgrade in place: `git fetch --tags && git checkout v2`. v1 callers need
+zero changes — see [docs/MIGRATION_v1_v2.md](docs/MIGRATION_v1_v2.md).
 
 ## License
 

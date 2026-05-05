@@ -58,3 +58,15 @@ def reset_db(mongo_container):
 def seeded(reset_db, seed_module, server_module):
     seed_module.seed()
     return server_module
+
+
+def _call(tool, **kwargs):
+    """FastMCP may wrap the function in a Tool object exposing .fn."""
+    fn = getattr(tool, "fn", tool)
+    return fn(**kwargs)
+
+
+@pytest.fixture
+def call():
+    """Helper for tests: `call(seeded.tool, **kwargs)`."""
+    return _call
