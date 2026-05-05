@@ -25,7 +25,21 @@ DB_NAME = "skill_graph"
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 
 # Logged tools that route work but do not themselves return artifact bytes.
-ROUTING_TOOLS = {"route_task", "validate_chain", "search_skills", "impact_analysis"}
+# Discovery / navigation / validation surface — distinct from "work" tools
+# (get_tokens, get_components, get_layouts, get_skill_contract,
+# get_skill_instructions) that return the data the agent acts on.
+#
+# v2.1.x: list_skills and traverse_dependencies were missing from this set
+# because the categorization predated v2.1.0. R2 surfaced the gap — its
+# routing-ratio of 0.47 was undercounting list_skills as work.
+ROUTING_TOOLS = {
+    "route_task",
+    "validate_chain",
+    "search_skills",
+    "impact_analysis",
+    "list_skills",
+    "traverse_dependencies",
+}
 
 
 def _runs_collection():

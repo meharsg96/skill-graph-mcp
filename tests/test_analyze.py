@@ -63,28 +63,45 @@ def test_compute_blog1_session_filter(reset_db):
 
 
 def test_compute_blog2_buckets_routing_vs_work(reset_db):
-    """ROUTING_TOOLS = {route_task, validate_chain, search_skills, impact_analysis}.
-    Everything else counts as work."""
+    """ROUTING_TOOLS classifies discovery/navigation/validation tools as
+    routing; everything else (data retrieval) counts as work.
+
+    v2.1.x added list_skills + traverse_dependencies to ROUTING_TOOLS
+    after R2 surfaced the gap (its routing-ratio of 0.47 was undercounting
+    list_skills as work). This test pins the corrected categorization."""
     runs = _seed_runs(reset_db, [
-        {"tool": "route_task",      "tokens_returned": 10, "error": None,
+        {"tool": "route_task",            "tokens_returned": 10,  "error": None,
          "session_id": "demo", "timestamp": datetime.now(timezone.utc)},
-        {"tool": "validate_chain",  "tokens_returned": 10, "error": None,
+        {"tool": "validate_chain",        "tokens_returned": 10,  "error": None,
          "session_id": "demo", "timestamp": datetime.now(timezone.utc)},
-        {"tool": "get_tokens",      "tokens_returned": 100, "error": None,
+        {"tool": "list_skills",           "tokens_returned": 50,  "error": None,
          "session_id": "demo", "timestamp": datetime.now(timezone.utc)},
-        {"tool": "get_components",  "tokens_returned": 100, "error": None,
+        {"tool": "traverse_dependencies", "tokens_returned": 80,  "error": None,
          "session_id": "demo", "timestamp": datetime.now(timezone.utc)},
-        {"tool": "get_components",  "tokens_returned": 100, "error": None,
+        {"tool": "get_tokens",            "tokens_returned": 100, "error": None,
+         "session_id": "demo", "timestamp": datetime.now(timezone.utc)},
+        {"tool": "get_components",        "tokens_returned": 100, "error": None,
+         "session_id": "demo", "timestamp": datetime.now(timezone.utc)},
+        {"tool": "get_components",        "tokens_returned": 100, "error": None,
          "session_id": "demo", "timestamp": datetime.now(timezone.utc)},
     ])
     rows = analyze.compute_blog2(runs)
     assert len(rows) == 1
     r = rows[0]
     assert r["session"] == "demo"
-    assert r["routing_calls"] == 2
+    assert r["routing_calls"] == 4
     assert r["work_calls"] == 3
-    assert r["routing_ratio"] == 0.4   # 2 / 5
-    assert r["total_tokens"] == 320
+    assert r["routing_ratio"] == round(4 / 7, 2)
+    assert r["total_tokens"] == 450
+
+
+def test_routing_tools_includes_v2_1_discovery_surface():
+    """Regression net for the v2.1.x classification fix. If a future tool
+    is added that's clearly discovery/navigation, this test forces
+    contributors to either add it here or document why it's work."""
+    expected = {"route_task", "validate_chain", "search_skills",
+                "impact_analysis", "list_skills", "traverse_dependencies"}
+    assert analyze.ROUTING_TOOLS == expected
 
 
 def test_compute_blog2_session_filter(reset_db):
