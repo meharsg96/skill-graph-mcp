@@ -118,6 +118,48 @@ def compute_blog2(runs_col, session_id: str | None = None) -> list[dict]:
     return rows
 
 
+def compute_sessions(runs_col) -> list[dict]:
+    """List every distinct session_id in the runs collection with call count
+    and last-seen timestamp. Sorted by last_seen descending so the most
+    recent session is at the top — matches the question users actually
+    ask ("what's the SESSION_ID I just used?")."""
+    pipeline = [
+        {"$group": {
+            "_id": "$session_id",
+            "calls": {"$sum": 1},
+            "last_seen": {"$max": "$timestamp"},
+            "first_seen": {"$min": "$timestamp"},
+            "errors": {"$sum": {"$cond": [{"$ne": ["$error", None]}, 1, 0]}},
+        }},
+        {"$sort": {"last_seen": -1}},
+    ]
+    return [
+        {
+            "session": d["_id"],
+            "calls": d["calls"],
+            "errors": d["errors"],
+            "first_seen": d["first_seen"],
+            "last_seen": d["last_seen"],
+        }
+        for d in runs_col.aggregate(pipeline)
+    ]
+
+
+def list_sessions() -> None:
+    """Render the session index to stdout."""
+    rows = compute_sessions(_runs_collection())
+    print("\n## Sessions in db.runs (most recent first)\n")
+    if not rows:
+        print("  (no runs logged yet — start the server and make at least one tool call)")
+        return
+    _print_table(
+        [[r["session"], r["calls"], r["errors"],
+          r["last_seen"].isoformat() if r["last_seen"] else ""]
+         for r in rows],
+        ["session", "calls", "errors", "last_seen"],
+    )
+
+
 def blog1_table(session_id: str | None = None) -> None:
     """Render the Blog 1 table to stdout."""
     rows = compute_blog1(_runs_collection(), session_id)
@@ -141,12 +183,16 @@ def main():
     ap.add_argument("--table", choices=["blog1", "blog2"], help="Render a single table")
     ap.add_argument("--all", action="store_true", help="Render every table")
     ap.add_argument("--session", help="Filter to a single SESSION_ID")
+    ap.add_argument("--list-sessions", action="store_true",
+                    help="List every session_id in db.runs with call count and last-seen timestamp")
     args = ap.parse_args()
 
-    if not args.table and not args.all:
+    if not args.table and not args.all and not args.list_sessions:
         ap.print_help()
         sys.exit(1)
 
+    if args.list_sessions:
+        list_sessions()
     if args.all or args.table == "blog1":
         blog1_table(args.session)
     if args.all or args.table == "blog2":

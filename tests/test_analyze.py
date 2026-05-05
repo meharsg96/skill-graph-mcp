@@ -102,3 +102,44 @@ def test_compute_blog1_handles_empty_runs(reset_db):
     runs = _seed_runs(reset_db, [])
     assert analyze.compute_blog1(runs) == []
     assert analyze.compute_blog2(runs) == []
+
+
+def test_compute_sessions_orders_by_last_seen_desc(reset_db):
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    runs = _seed_runs(reset_db, [
+        {"tool": "route_task", "tokens_returned": 10, "error": None,
+         "session_id": "older", "timestamp": now - timedelta(hours=2)},
+        {"tool": "get_tokens", "tokens_returned": 80, "error": None,
+         "session_id": "older", "timestamp": now - timedelta(hours=1)},
+        {"tool": "route_task", "tokens_returned": 70, "error": "RuntimeError",
+         "session_id": "newer", "timestamp": now},
+    ])
+    rows = analyze.compute_sessions(runs)
+    assert [r["session"] for r in rows] == ["newer", "older"]
+    assert rows[0]["calls"] == 1 and rows[0]["errors"] == 1
+    assert rows[1]["calls"] == 2 and rows[1]["errors"] == 0
+
+
+def test_compute_sessions_empty_runs(reset_db):
+    runs = _seed_runs(reset_db, [])
+    assert analyze.compute_sessions(runs) == []
+
+
+def test_list_sessions_prints_table(reset_db, capsys):
+    from datetime import datetime, timezone
+    _seed_runs(reset_db, [
+        {"tool": "route_task", "tokens_returned": 10, "error": None,
+         "session_id": "session:demo-r2", "timestamp": datetime.now(timezone.utc)},
+    ])
+    analyze.list_sessions()
+    out = capsys.readouterr().out
+    assert "session:demo-r2" in out
+    assert "calls" in out and "last_seen" in out
+
+
+def test_list_sessions_empty_message(reset_db, capsys):
+    _seed_runs(reset_db, [])
+    analyze.list_sessions()
+    out = capsys.readouterr().out
+    assert "no runs logged yet" in out
