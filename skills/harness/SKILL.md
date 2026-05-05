@@ -174,6 +174,49 @@ corrected ratio.
 
 ---
 
+## Common misreadings
+
+Real ones observed in agent sessions; not bugs, but easy to mistake for bugs.
+
+**Empty `chain` from `traverse_dependencies` on terminal skills.** Tools
+like `skill:test-writer`, `skill:ui-builder`, `skill:react-test-writer`,
+`skill:harness` produce outputs nothing else consumes — they're graph
+leaves. `traverse_dependencies` walks *downstream* (consumers of this
+skill's output), so an empty chain is the correct answer for any leaf.
+Cross-check: `impact_analysis(skill_id).direct_consumers == []`.
+
+**`route_task` returning "No active skill produces X" for a known type.**
+The most common cause is a stale server process that started before
+the schema migrated to the v2 ABI shape (where `output.type` is the
+nested field route_task matches against). Restart Claude Code so the
+user-scope MCP server respawns; the apparent failure goes away.
+Other causes: typo in the type name, querying with `input_type`
+instead of `output_type`, or the type genuinely has no producer.
+
+**`get_skill_instructions` errors with "instruction file not present".**
+The `skill_path` field references a markdown file that ships with some
+skills (harness, leafygreen-ui) and not others (test-writer,
+ui-builder are placeholders). For skills without a body, the response
+still carries `accessibility_rules` and `related` — use those.
+
+**Apparent disagreement between two tools for the same skill.**
+`list_skills` shows declarative metadata; `impact_analysis` walks the
+dependency graph; `get_skill_instructions` reads the markdown body.
+If `list_skills` shows a skill but `get_skill_instructions` errors,
+the skill is registered but its body file isn't present — that's
+what the error shape tells you. Different tools surface different
+projections of the same skill.
+
+**Routing-ratio looks wrong after a tool addition.** `ROUTING_TOOLS`
+must include any new discovery/navigation tool. Without that, a new
+tool gets bucketed as "work" and the ratio drifts. Fixed cases so
+far: v2.1.x added `list_skills` to ROUTING_TOOLS;
+`traverse_dependencies` was added at the same time. If you add a
+new routing/discovery tool, update `scripts/analyze.py` ROUTING_TOOLS
+and the pin test in `tests/test_analyze.py`.
+
+---
+
 ## Related skills
 
 - `skill:query-analysis`, `skill:schema-review`, `skill:code-gen`,

@@ -71,6 +71,7 @@ skill-graph-mcp/
 ├── tests/                 # pytest — 39 tests across v1 + v2
 ├── docs/
 │   ├── ARCHITECTURE.md    # load-bearing invariants
+│   ├── METRICS.md         # what's observable from which tool
 │   └── MIGRATION_v1_v2.md # what changed; why v1 callers need zero changes
 └── README.md
 ```
