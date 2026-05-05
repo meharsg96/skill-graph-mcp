@@ -171,6 +171,28 @@
       "skill_path": "skills/test-writer/SKILL.md"
     },
     {
+      "_id": "skill:react-test-writer",
+      "name": "React Test Suite Generator",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input":  {"type": "react_artifact",   "schema": "schema:react-artifact:v1"},
+      "output": {"type": "react_test_suite", "schema": "schema:react-test-suite:v1"},
+      "dependencies": ["skill:leafygreen-ui"],
+      "dependency_constraints": {
+        "skill:leafygreen-ui": {"version_range": ">=1.0.0 <2.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "test_frameworks": ["playwright", "react_testing_library", "vitest"],
+        "framework_default": "playwright",
+        "coverage_targets": {"interaction": 90, "render": 100, "accessibility": 100},
+        "test_categories": ["render", "interaction", "accessibility", "visual_regression"],
+        "added_in": "v2.2.0",
+        "added_to_close": "R2 finding F5 — react_artifact had no path to a test_suite; agent flagged it twice unprompted"
+      },
+      "skill_path": "skills/react-test-writer/SKILL.md"
+    },
+    {
       "_id": "skill:schema-review-v1",
       "name": "Schema Design Review (v1)",
       "version": "1.0.0",
@@ -219,6 +241,15 @@
       "produced_type": "application_code",
       "consumed_type": "application_code",
       "compatible": true
+    },
+    {
+      "_id": "edge:leafygreen-ui->react-test-writer",
+      "from_skill": "skill:leafygreen-ui",
+      "to_skill": "skill:react-test-writer",
+      "produced_type": "react_artifact",
+      "consumed_type": "react_artifact",
+      "compatible": true,
+      "note": "Added in v2.2.0 to close R2 F5: react_artifact previously had no downstream test path"
     },
     {
       "_id": "edge:schema-review-v1->code-gen",

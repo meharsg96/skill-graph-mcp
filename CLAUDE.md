@@ -49,6 +49,8 @@ This repo is a minimal pattern demo, not a framework. Three layers, intentionall
 
 7. **v2.1.0 LeafyGreen example** — `skill:leafygreen-ui` is the real-world MongoDB design system as a parameterized skill. Full tokens + 60-component spec live in `params:leafygreen-ui:default`. Demonstrates the architecture against a non-trivial design system; `skills/leafygreen/` carries the original SKILL.md + helper script (the helper agents-bypass demo from Blog 1). Adding it grew the modeled file-read baseline from 15,492 to 60,135 tokens vs unchanged 3,675 graph-path → ratio 4.22× → 16.36×. See `notes/r1-results.md`.
 
+8. **v2.2.0 React test chain** — `skill:react-test-writer` (input=`react_artifact`, output=`react_test_suite`) closes the dead-end LeafyGreen had in v2.1.0. Sibling to `skill:test-writer` rather than a union-type extension. Added because R2's agent flagged the gap twice unprompted (`notes/r2-leafygreen.md` F5). The architecture acting as a design tool: agent observation → typed schema change.
+
 ## Conventions
 
 - Skill IDs use the `skill:<slug>` namespace; preserve this when adding fixtures.

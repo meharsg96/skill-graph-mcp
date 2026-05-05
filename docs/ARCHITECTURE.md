@@ -96,6 +96,26 @@ LeafyGreen's two-level form (`{categories: {form: {button: {...}}}}`).
 The tool unwraps `categories` if present so callers see the same outer
 shape for both.
 
+## 5b. Closing the dead-end (v2.2.0)
+
+R2 found that `skill:leafygreen-ui`'s `react_artifact` had no
+downstream consumers — a dead-end chain. The agent flagged it twice
+unprompted as an architectural gap. v2.2.0 closes it with
+`skill:react-test-writer` (`input.type=react_artifact` →
+`output.type=react_test_suite`).
+
+Design choice: a sibling skill rather than generalizing
+`skill:test-writer` to accept multiple input types. Keeps the ABI
+strictly single-type per skill; matches the `react_artifact` /
+`ui_components` distinction we already made for the producer side.
+`route_task('test_suite')` and `route_task('react_test_suite')`
+return different chains — both discoverable via `list_skills` and
+`route_task`.
+
+This is the architecture acting as a *design tool*: the agent's
+unprompted observation in R2 became a typed, testable schema change
+in v2.2.0. See `notes/r2-leafygreen.md` F5 for the full thread.
+
 ## 6. Edges collection
 
 Used by `impact_analysis` to surface explicit incompatibilities flagged with
