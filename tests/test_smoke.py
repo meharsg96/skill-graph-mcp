@@ -151,8 +151,26 @@ def test_log_tool_call_writes_runs_document(seeded):
     assert doc["params"] == {"skill_id": "skill:query-analysis"}
     assert doc["tokens_returned"] > 0
     assert doc["duration_ms"] >= 0
-    assert doc["session_id"] == "default"
+    # SESSION_ID is captured at module load. Conftest doesn't set one, so we
+    # expect either the auto-generated fallback (preferred) or whatever the
+    # surrounding env supplied.
+    assert doc["session_id"].startswith("session:") or doc["session_id"] == os.environ.get("SESSION_ID")
     assert doc["error"] is None
+
+
+def test_session_id_auto_fallback_when_unset(seeded):
+    """If SESSION_ID was unset at server import, the captured id should be
+    the auto-generated session:auto-<pid>-<epoch> form so calls still group."""
+    captured = seeded.SESSION_ID
+    if os.environ.get("SESSION_ID"):
+        # Surrounding env supplied one — the explicit value should win.
+        assert captured == os.environ["SESSION_ID"]
+    else:
+        assert captured.startswith("session:auto-")
+        # Two segments after the prefix: pid and epoch
+        suffix = captured[len("session:auto-"):]
+        pid, epoch = suffix.split("-")
+        assert pid.isdigit() and epoch.isdigit()
 
 
 def test_seed_preserves_runs_collection(seeded, seed_module):
@@ -167,3 +185,29 @@ def test_seed_preserves_runs_collection(seeded, seed_module):
     after = client["skill_graph"]["runs"].count_documents({})
     client.close()
     assert after == before
+
+
+def test_log_tool_call_records_error_and_reraises(seeded, monkeypatch):
+    """When a tool raises, @log_tool_call must:
+       1) re-raise the exception (instrumentation must not swallow errors)
+       2) write a runs doc tagged with error = "<ExceptionClassName>"
+    """
+    import pytest
+
+    def boom(*a, **kw):
+        raise RuntimeError("simulated mongo failure")
+
+    # _active_skill is the helper get_skill_contract actually calls.
+    # Patching db.skills.find_one is unreliable because pymongo's
+    # Database.__getattr__ creates a fresh Collection each access.
+    monkeypatch.setattr(seeded, "_active_skill", boom)
+
+    with pytest.raises(RuntimeError, match="simulated mongo failure"):
+        _call(seeded.get_skill_contract, skill_id="skill:query-analysis")
+
+    client = MongoClient(os.environ["MONGODB_URI"])
+    runs = list(client["skill_graph"]["runs"].find({"tool": "get_skill_contract"}))
+    client.close()
+    assert len(runs) == 1
+    assert runs[0]["error"] == "RuntimeError"
+    assert runs[0]["params"] == {"skill_id": "skill:query-analysis"}
