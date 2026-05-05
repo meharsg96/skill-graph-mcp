@@ -57,6 +57,12 @@ approximation that needs no `tiktoken` dependency.
 `runs` has a TTL index (90 days) and a `(session_id, timestamp)` index for
 session-scoped aggregations. It is never dropped on re-seed.
 
+`SESSION_ID` is read **once at module load**, not per call. Reading it per call
+would silently break grouping when MCP hosts spawn the server with empty env
+(the spec default). The fallback `session:auto-<pid>-<epoch>` ensures every
+server process produces a stable, queryable session id even when no `SESSION_ID`
+is forwarded; an explicit `SESSION_ID` always wins when provided.
+
 ## Conventions
 
 - Skill IDs use the `skill:<slug>` namespace.

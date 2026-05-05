@@ -90,12 +90,20 @@ claude mcp add skill-graph python server.py
 
 Every tool call is logged to `db.runs` automatically — one document per call with
 `tool`, `params`, `tokens_returned`, `duration_ms`, `session_id`, and `error`.
-Tag a session by exporting `SESSION_ID` before starting the server:
+
+`SESSION_ID` is captured once at server startup. If unset, the server falls back
+to `session:auto-<pid>-<epoch>` so calls within one server process still group.
+Standalone runs:
 
 ```bash
 export SESSION_ID="session:$(date +%s)"
 python server.py
 ```
+
+When the server is launched by an MCP host (e.g. `claude mcp add`), MCP's stdio
+transport does **not** forward parent env vars by default — you must list them
+explicitly in the host's MCP server config (`env: { "SESSION_ID": "..." }`).
+Without that, the auto fallback gives you per-process grouping for free.
 
 The `runs` collection is created lazily and **never dropped on re-seed**, so
 historical sessions accumulate. Documents expire after 90 days via a TTL index.
