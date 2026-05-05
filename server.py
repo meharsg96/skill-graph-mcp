@@ -52,12 +52,21 @@ runs = db["runs"]
 mcp = FastMCP("skill-graph")
 
 
+# Per-tool argument redaction for the runs log. Replaces matching
+# kwargs with "[REDACTED]" before insertion into db.runs. Empty by
+# default — populate when adding a tool that accepts a secret value
+# the caller does not want surfaced in the audit log.
+_REDACTED_PARAMS: dict[str, set[str]] = {}
+
+
 def log_tool_call(func):
     """Append a record of the tool call to db.runs.
 
-    Captures: tool name, kwargs, approximate tokens returned (chars // 4),
-    duration, session id, error class. Failures in logging never propagate
-    to the caller — instrumentation must not break the tool surface.
+    Captures: tool name, kwargs (with per-tool redactions per
+    _REDACTED_PARAMS), approximate tokens returned (chars // 4),
+    duration, session id, error class. Failures in logging never
+    propagate to the caller — instrumentation must not break the
+    tool surface.
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -75,9 +84,14 @@ def log_tool_call(func):
             except Exception:
                 payload_chars = 0
             try:
+                redact = _REDACTED_PARAMS.get(func.__name__, set())
+                params_for_log = {
+                    k: ("[REDACTED]" if k in redact else v)
+                    for k, v in kwargs.items()
+                }
                 runs.insert_one({
                     "tool": func.__name__,
-                    "params": kwargs,
+                    "params": params_for_log,
                     "tokens_returned": payload_chars // 4,
                     "duration_ms": (datetime.now(timezone.utc) - start).total_seconds() * 1000,
                     "session_id": SESSION_ID,

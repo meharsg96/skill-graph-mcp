@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Seed MongoDB with example skill graph data.
 
-Drops and recreates `skills`, `edges`, and `parameters` (demo state — ephemeral).
-Creates `runs` if missing but never drops it (instrumentation history is
-preserved across re-seeds).
+Drops and recreates `skills`, `edges`, `parameters`, and `preferences`
+(demo state — ephemeral). Creates `runs` if missing but never drops it
+(instrumentation history is preserved across re-seeds).
 
-The skill schema is the v2 ABI shape (input/output blocks, semver versions,
-dependency_constraints, parameter_sources). For v1 backward compatibility,
-top-level `input_type` and `output_type` fields are derived from
-`input.type`/`output.type` at insert time so existing v1 tools keep working.
+The skill schema is the v2 ABI shape (input/output blocks, semver
+versions, dependency_constraints, parameter_sources). For v1 backward
+compatibility, top-level `input_type` and `output_type` fields are
+derived from `input.type`/`output.type` at insert time so existing
+v1 tools keep working.
 
 Environment:
     MONGODB_URI    Mongo connection string (default: mongodb://localhost:27017)
@@ -26,6 +27,7 @@ MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 SCHEMA_DIR = Path(__file__).parent.parent / "schema"
 SKILLS_PATH = SCHEMA_DIR / "skills.json"
 PARAMETERS_PATH = SCHEMA_DIR / "parameters.json"
+PREFERENCES_PATH = SCHEMA_DIR / "preferences.json"
 
 SKILL_VALIDATOR = {
     "$jsonSchema": {
@@ -54,7 +56,7 @@ SKILL_VALIDATOR = {
             },
             "dependencies": {"bsonType": "array", "items": {"bsonType": "string"}},
             "input_type":  {"bsonType": "string"},
-            "output_type": {"bsonType": "string"}
+            "output_type": {"bsonType": "string"},
         }
     }
 }
@@ -66,13 +68,28 @@ PARAMETER_VALIDATOR = {
         "properties": {
             "_id":      {"bsonType": "string"},
             "skill_id": {"bsonType": "string"},
-            "tenant":   {"bsonType": "string"}
+            "tenant":   {"bsonType": "string"},
         }
     }
 }
 
-# Retain runs documents for 90 days. Adjust if you need longer-lived
-# instrumentation history; analyze.py consumes whatever is present.
+PREFERENCE_VALIDATOR = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["_id", "owner", "scope", "category", "name", "version"],
+        "properties": {
+            "_id":      {"bsonType": "string"},
+            "owner":    {"bsonType": "string"},
+            "scope":    {"enum": ["skill", "category", "global"]},
+            "applies_to_skill_id": {"bsonType": "string"},
+            "category": {"bsonType": "string"},
+            "name":     {"bsonType": "string"},
+            "version":  {"bsonType": "string"},
+            "policy":   {"bsonType": "object"},
+        }
+    }
+}
+
 RUNS_TTL_SECONDS = 60 * 60 * 24 * 90
 
 
@@ -93,15 +110,17 @@ def seed():
     db.skills.drop()
     db.edges.drop()
     db.parameters.drop()
+    db.preferences.drop()
 
-    try:
-        db.create_collection("skills", validator=SKILL_VALIDATOR)
-    except CollectionInvalid:
-        pass
-    try:
-        db.create_collection("parameters", validator=PARAMETER_VALIDATOR)
-    except CollectionInvalid:
-        pass
+    for name, validator in [
+        ("skills", SKILL_VALIDATOR),
+        ("parameters", PARAMETER_VALIDATOR),
+        ("preferences", PREFERENCE_VALIDATOR),
+    ]:
+        try:
+            db.create_collection(name, validator=validator)
+        except CollectionInvalid:
+            pass
 
     db.skills.create_index("dependencies")
     db.skills.create_index("lifecycle")
@@ -109,10 +128,6 @@ def seed():
     db.skills.create_index("output_type")
     db.skills.create_index("output.type")
     db.skills.create_index("input.type")
-    # Text index for search_skills (v2). v2.3.0 added `description` to
-    # the indexed fields — descriptions became the primary disambiguation
-    # surface in v2.2.x (F6 fix), but search_skills couldn't find skills
-    # by description until now.
     db.skills.create_index([
         ("name", "text"),
         ("description", "text"),
@@ -125,6 +140,13 @@ def seed():
 
     db.parameters.create_index([("skill_id", 1), ("tenant", 1)], unique=True)
     db.parameters.create_index("tenant")
+
+    # preferences indexes — designed forward-compatible with Queryable
+    # Encryption: equality filters only (no text or unique compound on
+    # the policy body), per-owner partition for future per-owner DEKs.
+    db.preferences.create_index("owner")
+    db.preferences.create_index([("scope", 1), ("applies_to_skill_id", 1)])
+    db.preferences.create_index("category")
 
     if "runs" not in db.list_collection_names():
         db.create_collection("runs")
@@ -148,6 +170,12 @@ def seed():
         if params_data.get("parameters"):
             db.parameters.insert_many(params_data["parameters"])
             print(f"Inserted {len(params_data['parameters'])} parameter docs")
+
+    if PREFERENCES_PATH.exists():
+        prefs_data = json.loads(PREFERENCES_PATH.read_text())
+        if prefs_data.get("preferences"):
+            db.preferences.insert_many(prefs_data["preferences"])
+            print(f"Inserted {len(prefs_data['preferences'])} preference docs")
 
     runs_count = db.runs.estimated_document_count()
     print(f"runs collection preserved: {runs_count} existing documents")

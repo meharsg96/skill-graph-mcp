@@ -1,0 +1,34 @@
+{
+  "preferences": [
+    {
+      "_id": "pref:owner:lg-flavour-not-cage",
+      "owner": "owner",
+      "scope": "skill",
+      "applies_to_skill_id": "skill:leafygreen-ui",
+      "category": "house_style",
+      "name": "LG flavour, not LG cage",
+      "version": "1.0.0",
+      "policy": {
+        "summary": "Chrome uses real LeafyGreen components for fidelity. The canvas itself is open to any library — same palette, typography, easing curves, and spatial rhythm. Talks LG, walks LG, even if the canvas internals are an R3F scene.",
+        "areas": {
+          "chrome": {
+            "approach": "real_lg_components",
+            "rationale": "Fidelity for the parts users interact with directly. Top bar, controls, drawers, callouts, copy chips, badges, typography — these are where users learn the design language; they should be unmistakably LeafyGreen.",
+            "examples": ["top_bar", "controls", "drawer", "callouts", "copy_chips", "badges", "typography"]
+          },
+          "canvas": {
+            "approach": "any_library_lg_aesthetic",
+            "rationale": "Don't cage rendering work just because of design system. The canvas is where new things happen; align on look-and-feel, not on toolkit.",
+            "permitted_libraries": ["@react-three/fiber", "three.js", "d3", "framer-motion", "gsap", "raw_canvas", "webgl"],
+            "constraints": [
+              "palette: leafygreen tokens only",
+              "typography: Euclid Circular A (or stack fallback)",
+              "easing: leafygreen.transitions",
+              "spatial_rhythm: leafygreen.spacing"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

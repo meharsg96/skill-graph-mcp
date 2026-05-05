@@ -158,7 +158,7 @@ historical sessions accumulate. Documents expire after 90 days via a TTL index.
 | Tag | Blog | Adds |
 |-----|------|------|
 | [`v1`](https://github.com/meharsg96/skill-graph-mcp/tree/v1) | Your Agent Reads Around Your Skill Files | typed skill graph, 6 tools |
-| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill, **React test chain**, **`skill:harness` self-documenting meta-skill** |
+| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill, **React test chain**, **`skill:harness` self-documenting meta-skill**, **`preferences` collection** for per-deployment usage policies |
 | `v3` *(planned)* | TBD | artifact validation + repair |
 
 **v2.3.0 adds two things, both informed by R3:**
