@@ -7,21 +7,72 @@ not raw database access. This is the pattern from the blog:
 the agent queries skills through these tools, not by reading files.
 
 Usage:
-    pip install fastmcp pymongo
+    pip install -r requirements.txt
     python server.py
+
+Environment:
+    MONGODB_URI    Mongo connection string (default: mongodb://localhost:27017)
+    SESSION_ID     Tag attached to every tool-call log entry (default: "default")
 """
+
+import json
+import os
+from datetime import datetime, timezone
+from functools import wraps
 
 from fastmcp import FastMCP
 from pymongo import MongoClient
 
 DB_NAME = "skill_graph"
-client = MongoClient("mongodb://localhost:27017")
+MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
+
+client = MongoClient(MONGODB_URI)
 db = client[DB_NAME]
+runs = db["runs"]
 
 mcp = FastMCP("skill-graph")
 
 
+def log_tool_call(func):
+    """Append a record of the tool call to db.runs.
+
+    Captures: tool name, kwargs, approximate tokens returned (chars // 4),
+    duration, session id, error class. Failures in logging never propagate
+    to the caller — instrumentation must not break the tool surface.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = datetime.now(timezone.utc)
+        error = None
+        try:
+            result = func(*args, **kwargs)
+        except Exception as exc:
+            error = type(exc).__name__
+            result = {"error": f"{error}: {exc}"}
+            raise
+        finally:
+            try:
+                payload_chars = len(json.dumps(result, default=str))
+            except Exception:
+                payload_chars = 0
+            try:
+                runs.insert_one({
+                    "tool": func.__name__,
+                    "params": kwargs,
+                    "tokens_returned": payload_chars // 4,
+                    "duration_ms": (datetime.now(timezone.utc) - start).total_seconds() * 1000,
+                    "session_id": os.environ.get("SESSION_ID", "default"),
+                    "error": error,
+                    "timestamp": start,
+                })
+            except Exception:
+                pass
+        return result
+    return wrapper
+
+
 @mcp.tool()
+@log_tool_call
 def get_skill_contract(skill_id: str) -> dict:
     """Get a skill's base contract: input type, output type, dependencies."""
     skill = db.skills.find_one(
@@ -34,8 +85,14 @@ def get_skill_contract(skill_id: str) -> dict:
 
 
 @mcp.tool()
+@log_tool_call
 def get_tokens(skill_id: str, theme: str = None) -> dict:
-    """Get design tokens for a skill. Optionally filter by theme."""
+    """Get design tokens for a skill.
+
+    When `theme` is provided, returns only that theme's token block plus
+    theme-agnostic fields (spacing_unit, type_scale). When omitted, returns
+    the full design_tokens document including the list of available themes.
+    """
     skill = db.skills.find_one(
         {"_id": skill_id, "lifecycle": "active"},
         {"name": 1, "domain_fields.design_tokens": 1}
@@ -45,26 +102,58 @@ def get_tokens(skill_id: str, theme: str = None) -> dict:
     tokens = skill.get("domain_fields", {}).get("design_tokens")
     if not tokens:
         return {"error": f"Skill '{skill_id}' has no design tokens"}
-    if theme and isinstance(tokens, dict) and "themes" in tokens:
-        return {"skill": skill["name"], "theme": theme, "tokens": tokens}
+
+    if theme is not None:
+        themes = tokens.get("themes")
+        if not isinstance(themes, dict) or theme not in themes:
+            available = list(themes.keys()) if isinstance(themes, dict) else themes
+            return {"error": f"Theme '{theme}' not defined", "available_themes": available}
+        narrowed = {k: v for k, v in tokens.items() if k != "themes"}
+        narrowed["theme"] = theme
+        narrowed["tokens"] = themes[theme]
+        return {"skill": skill["name"], **narrowed}
+
     return {"skill": skill["name"], "tokens": tokens}
 
 
 @mcp.tool()
+@log_tool_call
 def get_components(skill_id: str, category: str = None) -> dict:
-    """Get component definitions for a skill. Optionally filter by category."""
+    """Get component definitions for a skill.
+
+    When `category` is provided, returns only that category's variants.
+    When omitted, returns the list of available categories without their
+    bodies — callers must request a category to receive variant detail.
+    """
     skill = db.skills.find_one(
         {"_id": skill_id, "lifecycle": "active"},
-        {"name": 1, "domain_fields": 1}
+        {"name": 1, "domain_fields.components": 1}
     )
     if not skill:
         return {"error": f"Skill '{skill_id}' not found or not active"}
-    return {"skill": skill["name"], "domain_fields": skill.get("domain_fields", {})}
+    components = skill.get("domain_fields", {}).get("components")
+    if not components:
+        return {"error": f"Skill '{skill_id}' has no components"}
+
+    if category is not None:
+        if category not in components:
+            return {
+                "error": f"Category '{category}' not defined",
+                "available_categories": sorted(components.keys()),
+            }
+        return {"skill": skill["name"], "category": category, "variants": components[category]}
+
+    return {"skill": skill["name"], "categories": sorted(components.keys())}
 
 
 @mcp.tool()
+@log_tool_call
 def get_layouts(skill_id: str, breakpoint: str = None) -> dict:
-    """Get layout configuration for a skill. Optionally filter by breakpoint."""
+    """Get layout configuration for a skill.
+
+    When `breakpoint` is provided, returns only that breakpoint's value.
+    When omitted, returns all breakpoints and any layout_grids.
+    """
     skill = db.skills.find_one(
         {"_id": skill_id, "lifecycle": "active"},
         {"name": 1, "domain_fields.breakpoints": 1, "domain_fields.layout_grids": 1}
@@ -72,30 +161,40 @@ def get_layouts(skill_id: str, breakpoint: str = None) -> dict:
     if not skill:
         return {"error": f"Skill '{skill_id}' not found or not active"}
     fields = skill.get("domain_fields", {})
+    breakpoints = fields.get("breakpoints", {})
+
+    if breakpoint is not None:
+        if breakpoint not in breakpoints:
+            return {
+                "error": f"Breakpoint '{breakpoint}' not defined",
+                "available_breakpoints": sorted(breakpoints.keys()),
+            }
+        return {"skill": skill["name"], "breakpoint": breakpoint, "value": breakpoints[breakpoint]}
+
     result = {"skill": skill["name"]}
-    if "breakpoints" in fields:
-        if breakpoint and breakpoint in fields["breakpoints"]:
-            result["breakpoint"] = {breakpoint: fields["breakpoints"][breakpoint]}
-        else:
-            result["breakpoints"] = fields["breakpoints"]
+    if breakpoints:
+        result["breakpoints"] = breakpoints
     if "layout_grids" in fields:
         result["layout_grids"] = fields["layout_grids"]
     return result
 
 
 @mcp.tool()
+@log_tool_call
 def validate_chain(skill_ids: list[str]) -> dict:
-    """
-    Validate a proposed skill chain.
+    """Validate a proposed skill chain.
 
-    Checks that every skill is active, every skill's output type
-    matches the next skill's input type, and all dependencies
-    are satisfied.
+    Checks (errors accumulate, none short-circuit):
+      1. every skill exists and is `lifecycle: "active"`
+      2. each skill's `output_type` matches the next skill's `input_type`
+      3. every skill's direct dependencies appear earlier in the chain
+
+    This validates direct dependencies only. For the full transitive
+    closure of a skill's dependency tree, call `traverse_dependencies`.
     """
     errors = []
     skills = {s["_id"]: s for s in db.skills.find({"_id": {"$in": skill_ids}})}
 
-    # Check all skills exist and are active
     for sid in skill_ids:
         if sid not in skills:
             errors.append({"type": "not_found", "skill": sid})
@@ -106,7 +205,6 @@ def validate_chain(skill_ids: list[str]) -> dict:
                 "state": skills[sid]["lifecycle"]
             })
 
-    # Check type compatibility across the chain
     for i in range(len(skill_ids) - 1):
         pid, cid = skill_ids[i], skill_ids[i + 1]
         if pid in skills and cid in skills:
@@ -121,7 +219,6 @@ def validate_chain(skill_ids: list[str]) -> dict:
                     "expected": expected
                 })
 
-    # Check dependency satisfaction
     seen = set()
     for sid in skill_ids:
         if sid in skills:
@@ -143,11 +240,12 @@ def validate_chain(skill_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+@log_tool_call
 def traverse_dependencies(skill_id: str, max_depth: int = 10) -> dict:
-    """
-    Traverse the dependency graph from a starting skill using $graphLookup.
+    """Traverse the dependency graph from a starting skill using $graphLookup.
 
     Returns all downstream skills reachable through active dependencies.
+    Inactive skills are pruned mid-traversal via `restrictSearchWithMatch`.
     """
     pipeline = [
         {"$match": {"_id": skill_id}},

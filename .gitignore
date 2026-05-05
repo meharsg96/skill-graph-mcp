@@ -1,4 +1,24 @@
+# Python
 __pycache__/
 *.pyc
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Environments
 .env
 venv/
+.venv/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local-only working notes, plans, drafts — never committed
+notes/
