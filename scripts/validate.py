@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
-"""Plan validation using $graphLookup."""
+"""Plan validation using $graphLookup.
+
+Environment:
+    MONGODB_URI    Mongo connection string (default: mongodb://localhost:27017)
+"""
+
+import os
 
 from pymongo import MongoClient
 
 DB_NAME = "skill_graph"
+MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 
 
 def get_downstream_chain(db, start_skill_id):
@@ -65,7 +72,7 @@ def validate_composition(db, intended_skill_ids):
 
 
 def main():
-    client = MongoClient("mongodb://localhost:27017")
+    client = MongoClient(MONGODB_URI)
     db = client[DB_NAME]
 
     print("=" * 55)

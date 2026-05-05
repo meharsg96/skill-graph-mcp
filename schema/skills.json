@@ -53,11 +53,60 @@
       "domain_fields": {
         "component_library": "react",
         "design_tokens": {
-          "themes": ["light", "dark"],
+          "themes": {
+            "light": {
+              "primary":   "#2563EB",
+              "secondary": "#7C3AED",
+              "bg":        "#FFFFFF",
+              "surface":   "#F8FAFC",
+              "text":      "#0F172A",
+              "muted":     "#64748B",
+              "border":    "#E2E8F0",
+              "danger":    "#DC2626",
+              "warning":   "#F59E0B",
+              "success":   "#16A34A"
+            },
+            "dark": {
+              "primary":   "#60A5FA",
+              "secondary": "#A78BFA",
+              "bg":        "#0F172A",
+              "surface":   "#1E293B",
+              "text":      "#F8FAFC",
+              "muted":     "#94A3B8",
+              "border":    "#334155",
+              "danger":    "#F87171",
+              "warning":   "#FBBF24",
+              "success":   "#4ADE80"
+            }
+          },
           "spacing_unit": 4,
           "type_scale": [12, 14, 16, 20, 24, 32]
         },
-        "breakpoints": {"sm": 640, "md": 768, "lg": 1024, "xl": 1280}
+        "breakpoints": {"sm": 640, "md": 768, "lg": 1024, "xl": 1280},
+        "components": {
+          "buttons": [
+            {"variant": "primary",   "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled","loading"]},
+            {"variant": "secondary", "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled"]},
+            {"variant": "ghost",     "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled"]},
+            {"variant": "danger",    "sizes": ["sm","md","lg"], "states": ["default","hover","active","disabled","loading"]}
+          ],
+          "inputs": [
+            {"variant": "text",     "sizes": ["sm","md","lg"], "states": ["default","focus","error","disabled"]},
+            {"variant": "textarea", "sizes": ["md","lg"],      "states": ["default","focus","error","disabled"]},
+            {"variant": "select",   "sizes": ["sm","md","lg"], "states": ["default","focus","open","error","disabled"]},
+            {"variant": "checkbox", "sizes": ["sm","md"],      "states": ["unchecked","checked","indeterminate","disabled"]}
+          ],
+          "cards": [
+            {"variant": "elevated", "padding": ["compact","comfortable"]},
+            {"variant": "outlined", "padding": ["compact","comfortable"]},
+            {"variant": "filled",   "padding": ["compact","comfortable"]}
+          ],
+          "forms": [
+            {"variant": "stacked",    "spacing": "comfortable", "label_position": "top"},
+            {"variant": "inline",     "spacing": "compact",     "label_position": "left"},
+            {"variant": "two-column", "spacing": "comfortable", "label_position": "top"}
+          ]
+        }
       },
       "skill_path": "skills/ui-builder/SKILL.md"
     },
