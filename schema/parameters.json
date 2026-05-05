@@ -1,0 +1,84 @@
+{
+  "parameters": [
+    {
+      "_id": "params:ui-builder:client-a",
+      "skill_id": "skill:ui-builder",
+      "tenant": "client-a",
+      "design_tokens": {
+        "themes": {
+          "light": {
+            "primary":   "#2563EB",
+            "secondary": "#7C3AED",
+            "bg":        "#FFFFFF",
+            "surface":   "#F8FAFC",
+            "text":      "#0F172A",
+            "muted":     "#64748B",
+            "border":    "#E2E8F0",
+            "danger":    "#DC2626",
+            "warning":   "#F59E0B",
+            "success":   "#16A34A"
+          },
+          "dark": {
+            "primary":   "#3B82F6",
+            "secondary": "#8B5CF6",
+            "bg":        "#020617",
+            "surface":   "#0F172A",
+            "text":      "#F8FAFC",
+            "muted":     "#64748B",
+            "border":    "#1E293B",
+            "danger":    "#EF4444",
+            "warning":   "#F59E0B",
+            "success":   "#22C55E"
+          }
+        },
+        "spacing_unit": 4,
+        "type_scale": [12, 14, 16, 18, 24, 30, 36]
+      },
+      "component_overrides": {
+        "button_radius": 8,
+        "input_style": "outlined",
+        "card_shadow": "sm"
+      }
+    },
+    {
+      "_id": "params:ui-builder:client-b",
+      "skill_id": "skill:ui-builder",
+      "tenant": "client-b",
+      "design_tokens": {
+        "themes": {
+          "light": {
+            "primary":   "#16A34A",
+            "secondary": "#0EA5E9",
+            "bg":        "#FAFAF9",
+            "surface":   "#F5F5F4",
+            "text":      "#1C1917",
+            "muted":     "#78716C",
+            "border":    "#E7E5E4",
+            "danger":    "#B91C1C",
+            "warning":   "#CA8A04",
+            "success":   "#15803D"
+          },
+          "dark": {
+            "primary":   "#4ADE80",
+            "secondary": "#38BDF8",
+            "bg":        "#1C1917",
+            "surface":   "#292524",
+            "text":      "#FAFAF9",
+            "muted":     "#A8A29E",
+            "border":    "#44403C",
+            "danger":    "#F87171",
+            "warning":   "#FACC15",
+            "success":   "#4ADE80"
+          }
+        },
+        "spacing_unit": 8,
+        "type_scale": [13, 15, 17, 21, 26, 34, 42]
+      },
+      "component_overrides": {
+        "button_radius": 24,
+        "input_style": "filled",
+        "card_shadow": "lg"
+      }
+    }
+  ]
+}

@@ -25,12 +25,70 @@ sites must be updated.
 
 ## 3. Gateway — `server.py`
 
-Six FastMCP tools wrap MongoDB queries:
-`get_skill_contract`, `get_tokens`, `get_components`, `get_layouts`,
-`validate_chain`, `traverse_dependencies`.
+Ten FastMCP tools wrap MongoDB queries:
+
+- v1 (parameter retrieval, validation, traversal): `get_skill_contract`,
+  `get_tokens`, `get_components`, `get_layouts`, `validate_chain`,
+  `traverse_dependencies`
+- v2 (contracts, routing, impact, tenants): `route_task`, `search_skills`,
+  `list_skills`, `get_skill_instructions`, `impact_analysis`
 
 **The load-bearing invariant:** every read tool filters by `lifecycle: "active"`
-so inactive skills are invisible to consumers. Preserve this when adding tools.
+*by default* so inactive skills are invisible to consumers. The five v2 tools
+enforce this in the same place — `route_task`'s and `impact_analysis`'s
+`$graphLookup` calls use `restrictSearchWithMatch: { lifecycle: "active" }`,
+`search_skills` adds it to the find filter, `list_skills` defaults to
+`lifecycle="active"` and only includes inactive skills if the caller explicitly
+asks (`lifecycle="inactive"` or `lifecycle="any"`). Preserve this when adding
+tools.
+
+**Discovery vs search:** `search_skills` is text-index based — use it for
+ranked relevance against keywords. `list_skills` is declarative — use it for
+enumeration (`"every active skill"`, `"who consumes application_code?"`).
+The distinction was added in v2.1 after R1 found the agent reading
+`schema/skills.json` directly because text-index search couldn't answer
+"list everything" queries.
+
+## 4. Contract layer (v2) — ABI shape
+
+Skill documents carry an explicit application binary interface:
+
+```json
+{
+  "_id": "skill:schema-review",
+  "version": "2.1.0",
+  "input":  {"type": "query_patterns",        "schema": "schema:query-patterns:v1"},
+  "output": {"type": "schema_recommendation", "schema": "schema:schema-recommendation:v2"},
+  "dependencies": ["skill:query-analysis"],
+  "dependency_constraints": {
+    "skill:query-analysis": {"version_range": ">=1.0.0 <2.0.0"}
+  },
+  "parameter_sources": ["params:index-rules", "params:anti-patterns"]
+}
+```
+
+`seed.py` derives top-level `input_type` / `output_type` from the new
+`input.type` / `output.type` blocks at insert time so v1 tools keep working
+unchanged. v2 tools (`route_task`, `impact_analysis`) read the canonical
+`input.type` / `output.type`. See `docs/MIGRATION_v1_v2.md`.
+
+## 5. Tenant precedence (v2)
+
+`get_tokens` / `get_components` / `get_layouts` accept an optional
+`tenant=` argument. Lookup order:
+
+1. `db.parameters` document matching `(skill_id, tenant)` — wins if present
+2. The skill's own `domain_fields` — fallback
+
+Responses include a `source` field (`parameters[<tenant>]` or
+`skill_default`) so callers can reason about which path was taken without
+repeating the lookup.
+
+## 6. Edges collection
+
+Used by `impact_analysis` to surface explicit incompatibilities flagged with
+`compatible: false` (with an optional `note`). Seeded since v1; activated by
+v2.
 
 ## Instrumentation
 
@@ -56,6 +114,26 @@ approximation that needs no `tiktoken` dependency.
 
 `runs` has a TTL index (90 days) and a `(session_id, timestamp)` index for
 session-scoped aggregations. It is never dropped on re-seed.
+
+`SESSION_ID` is read **once at module load**, not per call. Reading it per call
+would silently break grouping when MCP hosts spawn the server with empty env
+(the spec default). The fallback `session:auto-<pid>-<epoch>` ensures every
+server process produces a stable, queryable session id even when no `SESSION_ID`
+is forwarded; an explicit `SESSION_ID` always wins when provided.
+
+**SESSION_ID propagation paths:**
+
+| Launch path | SESSION_ID source |
+|---|---|
+| `python server.py` standalone (env exported in shell) | inherits parent env ✅ |
+| `python scripts/route.py …` (in-process import) | inherits parent env ✅ |
+| `scripts/run_session.sh python server.py` | inherits via `exec` ✅ |
+| MCP host (`claude mcp add`, FastMCP `Client('server.py')`) | empty env by spec — auto fallback ⚠️ |
+| MCP host with explicit `env:` config block | inherits from forwarded env ✅ |
+| `scripts/mcp_host.py` (in-repo helper) | forwards `MONGODB_URI` + `SESSION_ID` explicitly ✅ |
+
+`scripts/mcp_host.py` exists specifically because the bare FastMCP `Client`
+path drops env. It uses `StdioTransport(env=…)` to opt in.
 
 ## Conventions
 

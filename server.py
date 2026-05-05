@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """
-MCP server for typed skill graph.
+MCP server for typed skill graph (v2).
 
-Exposes semantic graph operations backed by MongoDB,
-not raw database access. This is the pattern from the blog:
-the agent queries skills through these tools, not by reading files.
+v1 tools (parameter retrieval, validation, traversal) are preserved unchanged
+in shape. v2 adds:
+
+  - route_task(target_output_type)     — backward $graphLookup to a chain
+  - search_skills(query)               — Mongo text-index search
+  - get_skill_instructions(skill_id)   — read the skill's markdown body
+  - impact_analysis(skill_id)          — direct + transitive consumers + incompatible edges
+
+Tenant-aware retrieval: get_tokens / get_components / get_layouts now accept
+an optional `tenant=` argument. When given, the parameters collection is
+consulted first; the skill's own `domain_fields` is the fallback.
 
 Usage:
     pip install -r requirements.txt
@@ -12,19 +20,30 @@ Usage:
 
 Environment:
     MONGODB_URI    Mongo connection string (default: mongodb://localhost:27017)
-    SESSION_ID     Tag attached to every tool-call log entry (default: "default")
+    SESSION_ID     Tag attached to every tool-call log entry
+                   (auto fallback: session:auto-<pid>-<epoch>)
 """
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 from functools import wraps
+from pathlib import Path
 
 from fastmcp import FastMCP
 from pymongo import MongoClient
 
 DB_NAME = "skill_graph"
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
+REPO_ROOT = Path(__file__).resolve().parent
+
+# MCP's stdio transport spawns servers with an empty env by default — the host
+# must opt in to forwarding any variable. To keep session-scoped aggregations
+# meaningful even when the host doesn't forward SESSION_ID, fall back to a
+# server-lifetime id. Calls within one server process then group naturally;
+# explicit SESSION_ID still wins when provided.
+SESSION_ID = os.environ.get("SESSION_ID") or f"session:auto-{os.getpid()}-{int(time.time())}"
 
 client = MongoClient(MONGODB_URI)
 db = client[DB_NAME]
@@ -61,7 +80,7 @@ def log_tool_call(func):
                     "params": kwargs,
                     "tokens_returned": payload_chars // 4,
                     "duration_ms": (datetime.now(timezone.utc) - start).total_seconds() * 1000,
-                    "session_id": os.environ.get("SESSION_ID", "default"),
+                    "session_id": SESSION_ID,
                     "error": error,
                     "timestamp": start,
                 })
@@ -71,13 +90,29 @@ def log_tool_call(func):
     return wrapper
 
 
+# ---------- internal helpers ----------
+
+def _active_skill(skill_id: str, projection: dict | None = None):
+    """Find an active skill by id, or None."""
+    return db.skills.find_one({"_id": skill_id, "lifecycle": "active"}, projection)
+
+
+def _tenant_params(skill_id: str, tenant: str) -> dict | None:
+    """Look up tenant overrides for a skill, or None."""
+    return db.parameters.find_one({"skill_id": skill_id, "tenant": tenant})
+
+
+# ---------- v1 tools (preserved; tenant arg added to retrieval tools) ----------
+
 @mcp.tool()
 @log_tool_call
 def get_skill_contract(skill_id: str) -> dict:
-    """Get a skill's base contract: input type, output type, dependencies."""
-    skill = db.skills.find_one(
-        {"_id": skill_id, "lifecycle": "active"},
-        {"name": 1, "input_type": 1, "output_type": 1, "dependencies": 1, "version": 1}
+    """Get a skill's base contract: input/output types, dependencies, version."""
+    skill = _active_skill(
+        skill_id,
+        {"name": 1, "input_type": 1, "output_type": 1, "input": 1, "output": 1,
+         "dependencies": 1, "dependency_constraints": 1, "version": 1,
+         "parameter_sources": 1}
     )
     if not skill:
         return {"error": f"Skill '{skill_id}' not found or not active"}
@@ -86,20 +121,33 @@ def get_skill_contract(skill_id: str) -> dict:
 
 @mcp.tool()
 @log_tool_call
-def get_tokens(skill_id: str, theme: str = None) -> dict:
-    """Get design tokens for a skill.
+def get_tokens(skill_id: str, theme: str = None, tenant: str = None) -> dict:
+    """Get design tokens for a skill, optionally filtered to a single theme.
 
-    When `theme` is provided, returns only that theme's token block plus
-    theme-agnostic fields (spacing_unit, type_scale). When omitted, returns
-    the full design_tokens document including the list of available themes.
+    Precedence when `tenant` is provided: the matching `parameters` document
+    wins. If no parameter doc exists for that tenant/skill, the skill's own
+    `domain_fields.design_tokens` is the fallback. Returns include a
+    `source` field indicating which path was used.
     """
-    skill = db.skills.find_one(
-        {"_id": skill_id, "lifecycle": "active"},
-        {"name": 1, "domain_fields.design_tokens": 1}
-    )
-    if not skill:
-        return {"error": f"Skill '{skill_id}' not found or not active"}
-    tokens = skill.get("domain_fields", {}).get("design_tokens")
+    if tenant is not None:
+        p = _tenant_params(skill_id, tenant)
+        tokens = (p or {}).get("design_tokens") if p else None
+        source = f"parameters[{tenant}]" if tokens else "skill_default"
+    else:
+        tokens = None
+        source = "skill_default"
+
+    if tokens is None:
+        skill = _active_skill(skill_id, {"name": 1, "domain_fields.design_tokens": 1})
+        if not skill:
+            return {"error": f"Skill '{skill_id}' not found or not active"}
+        tokens = skill.get("domain_fields", {}).get("design_tokens")
+        skill_name = skill["name"]
+    else:
+        # Always resolve display name from the skill itself
+        skill = _active_skill(skill_id, {"name": 1})
+        skill_name = (skill or {}).get("name", skill_id)
+
     if not tokens:
         return {"error": f"Skill '{skill_id}' has no design tokens"}
 
@@ -111,29 +159,32 @@ def get_tokens(skill_id: str, theme: str = None) -> dict:
         narrowed = {k: v for k, v in tokens.items() if k != "themes"}
         narrowed["theme"] = theme
         narrowed["tokens"] = themes[theme]
-        return {"skill": skill["name"], **narrowed}
+        return {"skill": skill_name, "source": source, **narrowed}
 
-    return {"skill": skill["name"], "tokens": tokens}
+    return {"skill": skill_name, "source": source, "tokens": tokens}
 
 
 @mcp.tool()
 @log_tool_call
-def get_components(skill_id: str, category: str = None) -> dict:
-    """Get component definitions for a skill.
+def get_components(skill_id: str, category: str = None, tenant: str = None) -> dict:
+    """Get component definitions for a skill, optionally filtered to one category.
 
-    When `category` is provided, returns only that category's variants.
-    When omitted, returns the list of available categories without their
-    bodies — callers must request a category to receive variant detail.
+    Tenant overrides (e.g. `button_radius`, `input_style`) come from the
+    matching `parameters` document and are attached as a separate
+    `overrides` key in the response. Component variants themselves come
+    from the skill's `domain_fields.components`.
     """
-    skill = db.skills.find_one(
-        {"_id": skill_id, "lifecycle": "active"},
-        {"name": 1, "domain_fields.components": 1}
-    )
+    skill = _active_skill(skill_id, {"name": 1, "domain_fields.components": 1})
     if not skill:
         return {"error": f"Skill '{skill_id}' not found or not active"}
     components = skill.get("domain_fields", {}).get("components")
     if not components:
         return {"error": f"Skill '{skill_id}' has no components"}
+
+    overrides = None
+    if tenant is not None:
+        p = _tenant_params(skill_id, tenant)
+        overrides = (p or {}).get("component_overrides")
 
     if category is not None:
         if category not in components:
@@ -141,27 +192,41 @@ def get_components(skill_id: str, category: str = None) -> dict:
                 "error": f"Category '{category}' not defined",
                 "available_categories": sorted(components.keys()),
             }
-        return {"skill": skill["name"], "category": category, "variants": components[category]}
+        result = {"skill": skill["name"], "category": category, "variants": components[category]}
+        if overrides is not None:
+            result["overrides"] = overrides
+            result["tenant"] = tenant
+        return result
 
-    return {"skill": skill["name"], "categories": sorted(components.keys())}
+    result = {"skill": skill["name"], "categories": sorted(components.keys())}
+    if overrides is not None:
+        result["overrides"] = overrides
+        result["tenant"] = tenant
+    return result
 
 
 @mcp.tool()
 @log_tool_call
-def get_layouts(skill_id: str, breakpoint: str = None) -> dict:
+def get_layouts(skill_id: str, breakpoint: str = None, tenant: str = None) -> dict:
     """Get layout configuration for a skill.
 
-    When `breakpoint` is provided, returns only that breakpoint's value.
-    When omitted, returns all breakpoints and any layout_grids.
+    Tenants may override `breakpoints` and `layout_grids` via the
+    `parameters` document; absent that, the skill's `domain_fields` is
+    the source.
     """
-    skill = db.skills.find_one(
-        {"_id": skill_id, "lifecycle": "active"},
-        {"name": 1, "domain_fields.breakpoints": 1, "domain_fields.layout_grids": 1}
-    )
+    tenant_layouts = None
+    if tenant is not None:
+        p = _tenant_params(skill_id, tenant)
+        if p:
+            tenant_layouts = {k: p[k] for k in ("breakpoints", "layout_grids") if k in p}
+
+    skill = _active_skill(skill_id, {"name": 1, "domain_fields.breakpoints": 1, "domain_fields.layout_grids": 1})
     if not skill:
         return {"error": f"Skill '{skill_id}' not found or not active"}
     fields = skill.get("domain_fields", {})
-    breakpoints = fields.get("breakpoints", {})
+
+    breakpoints = (tenant_layouts or {}).get("breakpoints") or fields.get("breakpoints", {})
+    layout_grids = (tenant_layouts or {}).get("layout_grids") or fields.get("layout_grids")
 
     if breakpoint is not None:
         if breakpoint not in breakpoints:
@@ -174,8 +239,8 @@ def get_layouts(skill_id: str, breakpoint: str = None) -> dict:
     result = {"skill": skill["name"]}
     if breakpoints:
         result["breakpoints"] = breakpoints
-    if "layout_grids" in fields:
-        result["layout_grids"] = fields["layout_grids"]
+    if layout_grids:
+        result["layout_grids"] = layout_grids
     return result
 
 
@@ -280,6 +345,219 @@ def traverse_dependencies(skill_id: str, max_depth: int = 10) -> dict:
     if not result:
         return {"error": f"Skill '{skill_id}' not found"}
     return result[0]
+
+
+# ---------- v2 tools ----------
+
+@mcp.tool()
+@log_tool_call
+def route_task(target_output_type: str, max_depth: int = 10) -> dict:
+    """Find the skill chain that produces `target_output_type`.
+
+    Walks dependencies backward from the target via $graphLookup, returning
+    the prerequisite chain ordered root-first (deepest deps appear first,
+    target last). Inactive skills are pruned mid-traversal. If multiple
+    skills produce the same output type, the first match is used.
+    """
+    pipeline = [
+        {"$match": {"output.type": target_output_type, "lifecycle": "active"}},
+        {"$limit": 1},
+        {"$graphLookup": {
+            "from": "skills",
+            "startWith": "$dependencies",
+            "connectFromField": "dependencies",
+            "connectToField": "_id",
+            "as": "prerequisites",
+            "maxDepth": max_depth,
+            "depthField": "depth",
+            "restrictSearchWithMatch": {"lifecycle": "active"}
+        }},
+        {"$project": {
+            "_id": 1,
+            "target": "$name",
+            "target_output": "$output.type",
+            "prerequisites": {
+                "$map": {
+                    "input": {"$sortArray": {"input": "$prerequisites", "sortBy": {"depth": -1}}},
+                    "as": "s",
+                    "in": {
+                        "_id": "$$s._id",
+                        "name": "$$s.name",
+                        "input_type": "$$s.input_type",
+                        "output_type": "$$s.output_type",
+                        "depth": "$$s.depth"
+                    }
+                }
+            }
+        }}
+    ]
+    result = list(db.skills.aggregate(pipeline))
+    if not result:
+        return {"error": f"No active skill produces '{target_output_type}'"}
+    r = result[0]
+    chain = [s["_id"] for s in r["prerequisites"]] + [r["_id"]]
+    chain_names = [s["name"] for s in r["prerequisites"]] + [r["target"]]
+    return {
+        "target": r["target"],
+        "target_output": r["target_output"],
+        "chain": chain,
+        "chain_names": chain_names,
+    }
+
+
+@mcp.tool()
+@log_tool_call
+def search_skills(query: str, limit: int = 10) -> dict:
+    """Full-text search over active skill names and domain_fields.
+
+    Backed by Mongo's text index created in seed.py. Returns ranked
+    results with relevance scores.
+
+    For "list every skill" queries, use `list_skills` instead — text
+    indexes need search terms and produce poor results for enumeration.
+    """
+    cursor = (
+        db.skills
+        .find(
+            {"$text": {"$search": query}, "lifecycle": "active"},
+            {"name": 1, "input_type": 1, "output_type": 1, "version": 1,
+             "score": {"$meta": "textScore"}}
+        )
+        .sort([("score", {"$meta": "textScore"})])
+        .limit(limit)
+    )
+    return {"query": query, "results": list(cursor)}
+
+
+@mcp.tool()
+@log_tool_call
+def list_skills(
+    lifecycle: str = "active",
+    input_type: str = None,
+    output_type: str = None,
+) -> dict:
+    """Enumerate skills matching declarative filters.
+
+    Use this for "what skills exist?" or "what produces X?" — anywhere
+    you'd want a list rather than a ranked relevance match. `search_skills`
+    is the wrong tool for that intent (text indexes need search terms).
+
+    Args:
+        lifecycle: "active" (default), "inactive", or "any"
+        input_type: filter to skills consuming this type
+        output_type: filter to skills producing this type
+    """
+    match: dict = {}
+    if lifecycle and lifecycle != "any":
+        match["lifecycle"] = lifecycle
+    if input_type is not None:
+        match["input_type"] = input_type
+    if output_type is not None:
+        match["output_type"] = output_type
+    cursor = db.skills.find(
+        match,
+        {"name": 1, "version": 1, "lifecycle": 1,
+         "input_type": 1, "output_type": 1, "dependencies": 1}
+    ).sort("_id", 1)
+    results = list(cursor)
+    return {"filter": match, "count": len(results), "results": results}
+
+
+@mcp.tool()
+@log_tool_call
+def get_skill_instructions(skill_id: str) -> dict:
+    """Return the skill's instruction markdown (`skill_path`).
+
+    Bounded — does not traverse. Returns the file body if present, or a
+    structured error if the file is missing or the skill is unknown.
+    """
+    skill = _active_skill(skill_id, {"name": 1, "skill_path": 1})
+    if not skill:
+        return {"error": f"Skill '{skill_id}' not found or not active"}
+    rel = skill.get("skill_path")
+    if not rel:
+        return {"error": f"Skill '{skill_id}' has no skill_path"}
+    path = (REPO_ROOT / rel).resolve()
+    # Hard guard: refuse paths that escape the repo root
+    try:
+        path.relative_to(REPO_ROOT)
+    except ValueError:
+        return {"error": f"skill_path '{rel}' escapes the repository root"}
+    if not path.is_file():
+        return {
+            "skill": skill["name"],
+            "skill_path": rel,
+            "error": "instruction file not present in this checkout",
+        }
+    return {
+        "skill": skill["name"],
+        "skill_path": rel,
+        "content": path.read_text(),
+    }
+
+
+@mcp.tool()
+@log_tool_call
+def impact_analysis(skill_id: str, max_depth: int = 10) -> dict:
+    """Compute the blast radius if `skill_id` changes.
+
+    Returns:
+      - direct_consumers: skills that consume this skill's output_type
+      - transitive_downstream: full $graphLookup downstream tree (active only)
+      - incompatible_edges: edges from `db.edges` flagged compatible:false
+        that involve this skill (either side)
+    """
+    skill = db.skills.find_one({"_id": skill_id})
+    if not skill:
+        return {"error": f"Skill '{skill_id}' not found"}
+
+    output_type = skill.get("output_type")
+    direct = list(db.skills.find(
+        {"input_type": output_type, "lifecycle": "active", "_id": {"$ne": skill_id}},
+        {"name": 1, "input_type": 1, "output_type": 1}
+    ))
+
+    pipeline = [
+        {"$match": {"_id": skill_id}},
+        {"$graphLookup": {
+            "from": "skills",
+            "startWith": "$_id",
+            "connectFromField": "_id",
+            "connectToField": "dependencies",
+            "as": "downstream",
+            "maxDepth": max_depth,
+            "depthField": "depth",
+            "restrictSearchWithMatch": {"lifecycle": "active"}
+        }},
+        {"$project": {
+            "downstream": {
+                "$map": {
+                    "input": {"$sortArray": {"input": "$downstream", "sortBy": {"depth": 1}}},
+                    "as": "s",
+                    "in": {
+                        "_id": "$$s._id",
+                        "name": "$$s.name",
+                        "depth": "$$s.depth",
+                        "input_type": "$$s.input_type",
+                        "output_type": "$$s.output_type"
+                    }
+                }
+            }
+        }}
+    ]
+    transitive = next(iter(db.skills.aggregate(pipeline)), {}).get("downstream", [])
+
+    incompatible = list(db.edges.find(
+        {"compatible": False, "$or": [{"from_skill": skill_id}, {"to_skill": skill_id}]}
+    ))
+
+    return {
+        "skill": skill["name"],
+        "output_type": output_type,
+        "direct_consumers": direct,
+        "transitive_downstream": transitive,
+        "incompatible_edges": incompatible,
+    }
 
 
 if __name__ == "__main__":
