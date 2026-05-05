@@ -4,6 +4,8 @@ A minimal template for building typed skill parameter retrieval and composition 
 
 **The pattern**: Store skill contracts (input types, output types, lifecycle states, dependencies) and parameterized configuration as MongoDB documents. Use `$graphLookup` to traverse dependency chains and validate composition before execution. Expose the graph through semantic MCP tools, not raw database access.
 
+![Architecture: from skill files to typed graph queries](images/architecture-evolution.svg)
+
 Read the companion blog post: *[Typed Skill Graphs for LLM Orchestration with MongoDB]*
 
 ## Quick start
@@ -11,13 +13,15 @@ Read the companion blog post: *[Typed Skill Graphs for LLM Orchestration with Mo
 ```bash
 git clone https://github.com/meharsg96/skill-graph-mcp.git
 cd skill-graph-mcp
+git checkout v1                         # pin to the Blog 1 release
 
 # Requires: MongoDB 7.x+ running locally, Python 3.10+
-pip install pymongo fastmcp
+cp .env.example .env                    # MONGODB_URI defaults to mongodb://localhost:27017
+pip install -r requirements.txt
 
-python scripts/seed.py       # Seed the database
-python scripts/validate.py   # Run validation examples
-python server.py             # Start the MCP server
+python scripts/seed.py                  # Seed the database
+python scripts/validate.py              # Run validation examples
+python server.py                        # Start the MCP server
 
 # Or use mongosh
 mongosh < scripts/queries.js
@@ -27,13 +31,15 @@ mongosh < scripts/queries.js
 
 ```
 skill-graph-mcp/
-├── server.py              # MCP server — the graph gateway
+├── server.py              # MCP server — the graph gateway (6 tools, instrumented)
 ├── schema/
 │   └── skills.json        # 6 skills (5 active, 1 inactive) + 5 edges
 ├── scripts/
-│   ├── seed.py            # Seeds MongoDB with schema validation
+│   ├── seed.py            # Seeds MongoDB with schema validation; preserves runs collection
 │   ├── validate.py        # Plan validation with $graphLookup
 │   └── queries.js         # mongosh examples
+├── tests/                 # pytest smoke + bug-fix invariants
+├── docs/ARCHITECTURE.md   # the load-bearing invariants
 └── README.md
 ```
 
@@ -59,6 +65,8 @@ db.skills.aggregate([
 
 Inactive skills never appear in results. Type mismatches are caught before execution.
 
+![$graphLookup traversal with lifecycle filtering](images/graphlookup-validation.svg)
+
 ## MCP server
 
 `server.py` exposes six tools backed by MongoDB. These are semantic graph operations, not raw database access:
@@ -77,6 +85,28 @@ To connect to Claude Code:
 ```bash
 claude mcp add skill-graph python server.py
 ```
+
+## Instrumentation
+
+Every tool call is logged to `db.runs` automatically — one document per call with
+`tool`, `params`, `tokens_returned`, `duration_ms`, `session_id`, and `error`.
+Tag a session by exporting `SESSION_ID` before starting the server:
+
+```bash
+export SESSION_ID="session:$(date +%s)"
+python server.py
+```
+
+The `runs` collection is created lazily and **never dropped on re-seed**, so
+historical sessions accumulate. Documents expire after 90 days via a TTL index.
+
+## Series
+
+| Tag | Blog | Adds |
+|-----|------|------|
+| [`v1`](https://github.com/meharsg96/skill-graph-mcp/tree/v1) | Your Agent Reads Around Your Skill Files | typed skill graph, 6 tools |
+| `v2` *(in progress)* | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params |
+| `v3` *(planned)* | TBD | artifact validation + repair |
 
 ## License
 
