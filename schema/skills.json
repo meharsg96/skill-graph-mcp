@@ -3,11 +3,13 @@
     {
       "_id": "skill:query-analysis",
       "name": "Query Pattern Analysis",
-      "input_type": "workload_description",
-      "output_type": "query_patterns",
+      "version": "1.0.0",
       "lifecycle": "active",
-      "version": "1.0",
+      "input":  {"type": "workload_description", "schema": "schema:workload-description:v1"},
+      "output": {"type": "query_patterns",       "schema": "schema:query-patterns:v1"},
       "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": [],
       "domain_fields": {
         "analysis_types": ["read_heavy", "write_heavy", "mixed"]
       },
@@ -16,11 +18,15 @@
     {
       "_id": "skill:schema-review",
       "name": "Schema Design Review",
-      "input_type": "query_patterns",
-      "output_type": "schema_recommendation",
+      "version": "2.1.0",
       "lifecycle": "active",
-      "version": "2.1",
+      "input":  {"type": "query_patterns",        "schema": "schema:query-patterns:v1"},
+      "output": {"type": "schema_recommendation", "schema": "schema:schema-recommendation:v2"},
       "dependencies": ["skill:query-analysis"],
+      "dependency_constraints": {
+        "skill:query-analysis": {"version_range": ">=1.0.0 <2.0.0"}
+      },
+      "parameter_sources": ["params:index-rules", "params:anti-patterns"],
       "domain_fields": {
         "target_databases": ["relational", "document", "graph"],
         "index_strategies": ["compound", "partial", "wildcard", "text", "vector"],
@@ -31,11 +37,15 @@
     {
       "_id": "skill:code-gen",
       "name": "Application Code Generator",
-      "input_type": "schema_recommendation",
-      "output_type": "application_code",
+      "version": "3.0.0",
       "lifecycle": "active",
-      "version": "3.0",
+      "input":  {"type": "schema_recommendation", "schema": "schema:schema-recommendation:v2"},
+      "output": {"type": "application_code",      "schema": "schema:application-code:v1"},
       "dependencies": ["skill:schema-review"],
+      "dependency_constraints": {
+        "skill:schema-review": {"version_range": ">=2.0.0 <3.0.0"}
+      },
+      "parameter_sources": [],
       "domain_fields": {
         "languages": ["python", "typescript", "go"],
         "frameworks": ["fastapi", "express", "gin"]
@@ -45,11 +55,15 @@
     {
       "_id": "skill:ui-builder",
       "name": "Frontend UI Builder",
-      "input_type": "application_code",
-      "output_type": "ui_components",
+      "version": "1.4.0",
       "lifecycle": "active",
-      "version": "1.4",
+      "input":  {"type": "application_code", "schema": "schema:application-code:v1"},
+      "output": {"type": "ui_components",    "schema": "schema:ui-components:v1"},
       "dependencies": ["skill:code-gen"],
+      "dependency_constraints": {
+        "skill:code-gen": {"version_range": ">=3.0.0 <4.0.0"}
+      },
+      "parameter_sources": ["params:ui-builder:client-a", "params:ui-builder:client-b"],
       "domain_fields": {
         "component_library": "react",
         "design_tokens": {
@@ -113,11 +127,15 @@
     {
       "_id": "skill:test-writer",
       "name": "Test Suite Generator",
-      "input_type": "application_code",
-      "output_type": "test_suite",
+      "version": "1.5.0",
       "lifecycle": "active",
-      "version": "1.5",
+      "input":  {"type": "application_code", "schema": "schema:application-code:v1"},
+      "output": {"type": "test_suite",       "schema": "schema:test-suite:v1"},
       "dependencies": ["skill:code-gen"],
+      "dependency_constraints": {
+        "skill:code-gen": {"version_range": ">=3.0.0 <4.0.0"}
+      },
+      "parameter_sources": [],
       "domain_fields": {
         "test_frameworks": ["pytest", "jest", "go_test"],
         "coverage_targets": {"line": 80, "branch": 70}
@@ -127,11 +145,13 @@
     {
       "_id": "skill:schema-review-v1",
       "name": "Schema Design Review (v1)",
-      "input_type": "workload_description",
-      "output_type": "schema_recommendation_v1",
+      "version": "1.0.0",
       "lifecycle": "inactive",
-      "version": "1.0",
+      "input":  {"type": "workload_description",     "schema": "schema:workload-description:v1"},
+      "output": {"type": "schema_recommendation_v1", "schema": "schema:schema-recommendation:v1"},
       "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": [],
       "domain_fields": {
         "target_databases": ["relational", "document"]
       },
