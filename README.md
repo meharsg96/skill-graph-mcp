@@ -161,6 +161,10 @@ historical sessions accumulate. Documents expire after 90 days via a TTL index.
 | [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill |
 | `v3` *(planned)* | TBD | artifact validation + repair |
 
+To add your own parameterized skill to the graph (the question every reader
+asks after the series), see [docs/ADDING_A_SKILL.md](docs/ADDING_A_SKILL.md) —
+a six-stage pipeline with LeafyGreen as the worked example.
+
 `v2.1.0` adds [`skill:leafygreen-ui`](skills/leafygreen/SKILL.md) — MongoDB's
 own design system as a parameterized skill graph node, with the full
 [LeafyGreen UI](https://github.com/mongodb/leafygreen-ui) tokens and
