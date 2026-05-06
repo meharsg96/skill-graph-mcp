@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "schema:text-requirements:v1",
+  "title": "Text Requirements",
+  "description": "Free-text product requirements as supplied by a user. Source type — externally supplied, not produced by another skill. The skill's job is to bridge unstructured prose into the typed graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text"],
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "type": "string",
+      "description": "Optional surrounding context (product name, target users, brand) the user supplied alongside the requirement."
+    }
+  }
+}

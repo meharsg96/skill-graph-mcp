@@ -1,0 +1,50 @@
+{
+  "components": [
+    {
+      "type": "form",
+      "name": "LoginForm",
+      "fields": [
+        {
+          "name": "email",
+          "label": "Email",
+          "kind": "email",
+          "required": true,
+          "placeholder": "you@company.com"
+        },
+        {
+          "name": "password",
+          "label": "Password",
+          "kind": "password",
+          "required": true
+        }
+      ],
+      "actions": [
+        {
+          "label": "Sign in",
+          "intent": "primary",
+          "target": "submit"
+        },
+        {
+          "label": "Forgot password?",
+          "intent": "link",
+          "target": "/forgot-password"
+        }
+      ]
+    }
+  ],
+  "layout": {
+    "grid": "single-column",
+    "breakpoints": ["sm", "md", "lg"]
+  },
+  "interactions": {
+    "validation": "on_blur",
+    "submit": "POST /api/login",
+    "on_error": "inline_above_form"
+  },
+  "accessibility": {
+    "aria_labels": true,
+    "focus_management": true,
+    "keyboard_navigation": true,
+    "wcag_level": "AA"
+  }
+}

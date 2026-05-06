@@ -1,0 +1,19 @@
+{
+  "collection": "users",
+  "shape": {
+    "_id": "ObjectId",
+    "email": "string",
+    "name": "string",
+    "created_at": "date"
+  },
+  "indexes": [
+    {
+      "fields": ["email"],
+      "strategy": "single",
+      "rationale": "high-frequency lookup by email"
+    }
+  ],
+  "anti_patterns": [
+    "do not embed orders inside user document"
+  ]
+}

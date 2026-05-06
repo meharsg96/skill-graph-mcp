@@ -1,0 +1,20 @@
+{
+  "workload": "read_heavy",
+  "queries": [
+    {
+      "pattern": "find users by email",
+      "frequency": "high",
+      "filters": ["email"]
+    },
+    {
+      "pattern": "list orders for a user, newest first",
+      "frequency": "high",
+      "filters": ["user_id", "created_at"]
+    },
+    {
+      "pattern": "search products by category and price range",
+      "frequency": "medium",
+      "filters": ["category", "price"]
+    }
+  ]
+}

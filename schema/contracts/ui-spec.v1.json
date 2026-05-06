@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "schema:ui-spec:v1",
+  "title": "UI Spec",
+  "description": "Typed UI component specification: what to render, what fields/actions, what layout, what interactions, what accessibility guarantees. Defined by what ui-builder / leafygreen-ui need to consume — consumer-driven contract. Output of skill:requirements-to-component.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["components", "layout", "interactions", "accessibility"],
+  "properties": {
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "minLength": 1 },
+          "name": { "type": "string" },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "kind"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "label": { "type": "string" },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "text", "email", "password", "number",
+                    "checkbox", "radio", "select", "textarea",
+                    "date", "search", "toggle"
+                  ]
+                },
+                "required": { "type": "boolean" },
+                "placeholder": { "type": "string" }
+              }
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["label", "intent"],
+              "properties": {
+                "label": { "type": "string", "minLength": 1 },
+                "intent": {
+                  "type": "string",
+                  "enum": ["primary", "secondary", "danger", "link"]
+                },
+                "target": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grid"],
+      "properties": {
+        "grid": { "type": "string", "minLength": 1 },
+        "breakpoints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "interactions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "validation": { "type": "string" },
+        "submit": { "type": "string" },
+        "on_error": { "type": "string" }
+      }
+    },
+    "accessibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aria_labels": { "type": "boolean" },
+        "focus_management": { "type": "boolean" },
+        "keyboard_navigation": { "type": "boolean" },
+        "wcag_level": { "type": "string", "enum": ["A", "AA", "AAA"] }
+      }
+    }
+  }
+}

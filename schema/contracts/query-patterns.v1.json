@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "schema:query-patterns:v1",
+  "title": "Query Patterns",
+  "description": "Workload + a list of query shapes feeding schema-review.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workload", "queries"],
+  "properties": {
+    "workload": {
+      "type": "string",
+      "enum": ["read_heavy", "write_heavy", "mixed"]
+    },
+    "queries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pattern", "frequency"],
+        "properties": {
+          "pattern": { "type": "string", "minLength": 1 },
+          "frequency": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "filters": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

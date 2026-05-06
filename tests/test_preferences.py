@@ -77,3 +77,74 @@ def test_preference_validator_requires_required_fields(seeded):
     with pytest.raises(WriteError):
         db.preferences.insert_one(incomplete)
     client.close()
+
+
+# ---------- get_preferences MCP tool (v2.6) ----------
+
+def _call(tool, **kwargs):
+    fn = getattr(tool, "fn", tool)
+    return fn(**kwargs)
+
+
+def test_get_preferences_returns_lg_flavour_for_leafygreen(seeded):
+    r = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui")
+    assert r["count"] == 1
+    assert r["source"] == "preferences"
+    assert r["preferences"][0]["_id"] == "pref:owner:lg-flavour-not-cage"
+
+
+def test_get_preferences_unrelated_skill_returns_zero(seeded):
+    r = _call(seeded.get_preferences, skill_id="skill:schema-review")
+    assert r["count"] == 0
+    assert r["preferences"] == []
+
+
+def test_get_preferences_unknown_skill_errors(seeded):
+    r = _call(seeded.get_preferences, skill_id="skill:does-not-exist")
+    assert "error" in r
+
+
+def test_get_preferences_owner_filter(seeded):
+    r = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui", owner="owner")
+    assert r["count"] == 1
+    r2 = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui", owner="someone-else")
+    assert r2["count"] == 0
+
+
+def test_get_preferences_category_filter(seeded):
+    r = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui", category="house_style")
+    assert r["count"] == 1
+    r2 = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui", category="security")
+    assert r2["count"] == 0
+
+
+def test_get_preferences_global_scope_applies_everywhere(seeded):
+    """A scope: global preference should attach to any active skill."""
+    db = seeded.db
+    db.preferences.insert_one({
+        "_id": "pref:test:global-temp",
+        "owner": "owner",
+        "scope": "global",
+        "category": "test",
+        "name": "global temp",
+        "version": "0.0.1",
+        "policy": {"summary": "applies to everything"},
+    })
+    try:
+        r = _call(seeded.get_preferences, skill_id="skill:schema-review")
+        assert r["count"] == 1
+        assert r["preferences"][0]["_id"] == "pref:test:global-temp"
+        r2 = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui")
+        # both global-temp AND lg-flavour-not-cage should match
+        ids = {p["_id"] for p in r2["preferences"]}
+        assert ids == {"pref:test:global-temp", "pref:owner:lg-flavour-not-cage"}
+    finally:
+        db.preferences.delete_one({"_id": "pref:test:global-temp"})
+
+
+def test_get_preferences_logged_in_runs(seeded):
+    db = seeded.db
+    before = db.runs.count_documents({"tool": "get_preferences"})
+    _call(seeded.get_preferences, skill_id="skill:leafygreen-ui")
+    after = db.runs.count_documents({"tool": "get_preferences"})
+    assert after == before + 1

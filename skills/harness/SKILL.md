@@ -174,6 +174,43 @@ corrected ratio.
 
 ---
 
+## Local-only skills
+
+Beyond the canonical skills shipped in this repo, individual users may
+load additional skills that are local to their machine — never
+committed, never synchronized, never visible to anyone reading the
+public graph.
+
+**Mechanism:** set `SKILL_GRAPH_LOCAL_DIR` (default
+`~/.skill-graph-local/`) to point at a directory containing the same
+shape as `schema/` (`skills.json`, `parameters.json`,
+`preferences.json`, plus a `skills/local/<slug>/SKILL.md` body per
+skill). `seed.py` reads from there *after* the canonical seed and
+upserts each doc by `_id` (idempotent).
+
+**Hard guards** at seed time:
+- All local skill `_id` values must start with `skill:local:` —
+  canonical namespaces in the local overlay are rejected
+- Local parameter docs must reference local skills
+- Local preferences with `scope=skill` must apply to a local skill
+
+**Path resolution:** `skill_path` for local skills can be absolute
+(typically `~/.skill-graph-local/skills/local/<slug>/SKILL.md`).
+`get_skill_instructions` accepts paths under either trusted root —
+the repo root or `LOCAL_DIR` — and rejects everything else as a
+traversal attempt.
+
+**Why outside the repo:** the canonical location for `LOCAL_DIR` is
+*outside* the git working tree. This makes git leakage physically
+impossible — `git add` from inside the repo cannot see files at
+`~/.skill-graph-local/`. Defense-in-depth `.gitignore` entries cover
+the case where local content is accidentally placed inside the repo.
+
+For details on populating `LOCAL_DIR`, consult your own setup notes —
+local content is, by design, not documented in this repo.
+
+---
+
 ## Common misreadings
 
 Real ones observed in agent sessions; not bugs, but easy to mistake for bugs.

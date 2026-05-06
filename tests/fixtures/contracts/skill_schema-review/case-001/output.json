@@ -1,0 +1,25 @@
+{
+  "collection": "users",
+  "shape": {
+    "_id": "ObjectId",
+    "email": "string",
+    "name": "string",
+    "created_at": "date"
+  },
+  "indexes": [
+    {
+      "fields": ["email"],
+      "strategy": "single",
+      "rationale": "high-frequency lookup by email"
+    },
+    {
+      "fields": ["user_id", "created_at"],
+      "strategy": "compound",
+      "rationale": "supports user-scoped order listing sorted by recency"
+    }
+  ],
+  "anti_patterns": [
+    "do not embed orders inside user document — unbounded array growth",
+    "do not index low-cardinality fields like is_active without a partial filter"
+  ]
+}

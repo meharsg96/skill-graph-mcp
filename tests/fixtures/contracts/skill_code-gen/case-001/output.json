@@ -1,0 +1,14 @@
+{
+  "language": "typescript",
+  "framework": "express",
+  "files": [
+    {
+      "path": "src/models/user.ts",
+      "content": "import { Schema, model } from 'mongoose';\n\nconst UserSchema = new Schema({\n  email: { type: String, required: true, unique: true },\n  name: String,\n  created_at: { type: Date, default: Date.now }\n});\n\nUserSchema.index({ email: 1 });\n\nexport const User = model('User', UserSchema);\n"
+    },
+    {
+      "path": "src/routes/users.ts",
+      "content": "import { Router } from 'express';\nimport { User } from '../models/user';\n\nconst router = Router();\n\nrouter.get('/users/:email', async (req, res) => {\n  const user = await User.findOne({ email: req.params.email });\n  res.json(user);\n});\n\nexport default router;\n"
+    }
+  ]
+}
