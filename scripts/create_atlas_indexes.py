@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Create Atlas Vector Search indexes for Layer 2 semantic validation.
 
-Requires an Atlas cluster — local MongoDB does not support $vectorSearch.
+Requires Atlas or MongoDB 8.2+ with mongot running alongside mongod.
+As of 8.2, mongot is Linux-only — macOS requires Atlas.
 Run once after seed.py + seed_constraint_embeddings.py. The index takes
 1-3 minutes to reach READY state after creation.
 
@@ -94,8 +95,9 @@ def main() -> int:
         msg = str(e)
         if any(kw in msg for kw in ("Atlas", "not supported", "PlanExecutor")):
             print(
-                "ERROR: $vectorSearch requires Atlas. "
-                "Update MONGODB_URI in .env to an Atlas connection string.",
+                "ERROR: $vectorSearch requires MongoDB 8.2+ with mongot, or Atlas. "
+                "Update MONGODB_URI in .env to an Atlas connection string, "
+                "or start mongot alongside mongod (Linux only as of 8.2).",
                 file=sys.stderr,
             )
         else:

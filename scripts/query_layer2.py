@@ -11,7 +11,7 @@ Usage:
 Requires:
     ANTHROPIC_API_KEY  fact extraction (claude-haiku)
     VOYAGE_API_KEY     fact summary embedding (voyage-3)
-    MONGODB_URI        must point to Atlas ($vectorSearch not in local MongoDB)
+    MONGODB_URI        Atlas, or MongoDB 8.2+ with mongot (Linux only as of 8.2)
 
 Thresholds (cosine similarity — calibrate against labeled pairs):
     score >= HIGH_THRESHOLD → escalate (likely violation)
@@ -114,8 +114,9 @@ def run_layer2(skill_id: str, artifact_path: Path) -> dict:
                 "ok": False,
                 "phase": "vector_search",
                 "error": (
-                    "$vectorSearch requires Atlas. "
-                    "Update MONGODB_URI in .env to an Atlas connection string."
+                    "$vectorSearch requires MongoDB 8.2+ with mongot, or Atlas. "
+                    "Update MONGODB_URI in .env to an Atlas connection string, "
+                    "or start mongot alongside mongod (Linux only as of 8.2)."
                 ),
             }
         return {"ok": False, "phase": "vector_search", "error": msg}

@@ -899,7 +899,7 @@ def check_constraints(skill_id: str, fact_summary: str) -> dict:
     scripts/extract_fact_summary.py to produce it.
 
     Preconditions:
-      VOYAGE_API_KEY set, MONGODB_URI pointing to Atlas,
+      VOYAGE_API_KEY set, MONGODB_URI pointing to Atlas or MongoDB 8.2+ with mongot,
       constraint_embedding_index READY (scripts/create_atlas_indexes.py),
       embeddings populated (scripts/seed_constraint_embeddings.py).
     """
@@ -949,8 +949,9 @@ def check_constraints(skill_id: str, fact_summary: str) -> dict:
         if "$vectorSearch" in msg or "not supported" in msg.lower():
             return {
                 "error": (
-                    "$vectorSearch requires Atlas. "
-                    "Update MONGODB_URI to an Atlas connection string."
+                    "$vectorSearch requires MongoDB 8.2+ with mongot, or Atlas. "
+                    "Update MONGODB_URI to an Atlas connection string, "
+                    "or start mongot alongside mongod (Linux only as of 8.2)."
                 )
             }
         return {"error": f"vector search failed: {msg}"}
