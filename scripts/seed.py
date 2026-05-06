@@ -89,6 +89,23 @@ PARAMETER_VALIDATOR = {
     }
 }
 
+CONSTRAINT_VALIDATOR = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["_id", "skill_id", "rule_text", "violation_paraphrase", "severity"],
+        "properties": {
+            "_id":                   {"bsonType": "string"},
+            "skill_id":              {"bsonType": "string"},
+            "rule_text":             {"bsonType": "string"},
+            "violation_paraphrase":  {"bsonType": "string"},
+            "examples":              {"bsonType": "object"},
+            "constraint_embedding":  {"bsonType": ["array", "null"]},
+            "severity":              {"enum": ["fail", "warn", "note"]},
+            "category":              {"bsonType": "string"},
+        }
+    }
+}
+
 PREFERENCE_VALIDATOR = {
     "$jsonSchema": {
         "bsonType": "object",
@@ -105,6 +122,48 @@ PREFERENCE_VALIDATOR = {
         }
     }
 }
+
+CONSTRAINTS_SEED = [
+    {
+        "_id": "constraint:leafygreen-ui:no-green-on-white",
+        "skill_id": "skill:leafygreen-ui",
+        "rule_text": "Green (#00ED64) NEVER used for text on white. Fails WCAG AA contrast.",
+        "violation_paraphrase": "text color is #00ED64 (green-base / Spring Green) on white (#FFFFFF) or near-white background",
+        "examples": {
+            "violating": "color: '#00ED64' with background: 'white' — e.g. <Button style={{color: '#00ED64'}}>Submit</Button>",
+            "compliant": "color: '#00684A' (green.dark2) on white — passes WCAG AA contrast ratio"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "accessibility",
+    },
+    {
+        "_id": "constraint:leafygreen-ui:spacing-unit",
+        "skill_id": "skill:leafygreen-ui",
+        "rule_text": "All spacing values must be multiples of the 4px spacing unit.",
+        "violation_paraphrase": "spacing, padding, margin, or gap value is not a multiple of 4 — e.g. 13px, 7px, 5px, 3px",
+        "examples": {
+            "violating": "padding: '13px' or margin: '7px'",
+            "compliant": "padding: '12px' (3×4) or margin: '8px' (2×4)"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "design_tokens",
+    },
+    {
+        "_id": "constraint:ui-builder:primary-color",
+        "skill_id": "skill:ui-builder",
+        "rule_text": "Primary color must match the tenant's declared token. Default: #2563EB. client-a: #2563EB. client-b differs.",
+        "violation_paraphrase": "primary color value does not match the tenant design token — e.g. #3B82F6 used where #2563EB is declared",
+        "examples": {
+            "violating": "primary: '#3B82F6' when tenant declares primary: '#2563EB'",
+            "compliant": "primary: '#2563EB' matching tenant token"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "design_tokens",
+    },
+]
 
 RUNS_TTL_SECONDS = 60 * 60 * 24 * 90
 
@@ -127,11 +186,13 @@ def seed():
     db.edges.drop()
     db.parameters.drop()
     db.preferences.drop()
+    db.constraints.drop()
 
     for name, validator in [
         ("skills", SKILL_VALIDATOR),
         ("parameters", PARAMETER_VALIDATOR),
         ("preferences", PREFERENCE_VALIDATOR),
+        ("constraints", CONSTRAINT_VALIDATOR),
     ]:
         try:
             db.create_collection(name, validator=validator)
@@ -164,6 +225,14 @@ def seed():
     db.preferences.create_index([("scope", 1), ("applies_to_skill_id", 1)])
     db.preferences.create_index("category")
 
+    # constraints indexes — Layer 2 semantic validation.
+    # skill_id + category support fast pre-filter inside $vectorSearch.
+    # constraint_embedding is the Atlas Vector Search field (populated
+    # by scripts/seed_constraint_embeddings.py after embeddings are computed).
+    db.constraints.create_index("skill_id")
+    db.constraints.create_index("severity")
+    db.constraints.create_index([("skill_id", 1), ("category", 1)])
+
     if "runs" not in db.list_collection_names():
         db.create_collection("runs")
     db.runs.create_index("tool")
@@ -192,6 +261,9 @@ def seed():
         if prefs_data.get("preferences"):
             db.preferences.insert_many(prefs_data["preferences"])
             print(f"Inserted {len(prefs_data['preferences'])} preference docs")
+
+    db.constraints.insert_many(CONSTRAINTS_SEED)
+    print(f"Inserted {len(CONSTRAINTS_SEED)} constraint docs (embeddings pending)")
 
     runs_count = db.runs.estimated_document_count()
     print(f"runs collection preserved: {runs_count} existing documents")
