@@ -46,7 +46,7 @@ def with_no_local_dir(reset_db, seed_module, monkeypatch, tmp_path):
 def test_local_overlay_unset_no_change(with_no_local_dir):
     """Without SKILL_GRAPH_LOCAL_DIR pointing at a real dir, seed
     behaves exactly as before — no local skills loaded."""
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     locals_count = db.skills.count_documents({"_id": {"$regex": "^skill:local:"}})
     db.client.close()
     assert locals_count == 0
@@ -54,7 +54,7 @@ def test_local_overlay_unset_no_change(with_no_local_dir):
 
 def test_local_overlay_loads_fixture_skill(with_local_dir):
     """With the fixture dir, the synthetic local skill lands in db."""
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     fixture = db.skills.find_one({"_id": "skill:local:fixture"})
     db.client.close()
     assert fixture is not None
@@ -67,7 +67,7 @@ def test_local_overlay_loads_fixture_skill(with_local_dir):
 
 def test_local_overlay_idempotent_on_reseed(with_local_dir):
     """Re-running seed (with the same fixture) doesn't duplicate."""
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     before = db.skills.count_documents({"_id": "skill:local:fixture"})
     with_local_dir.seed()
     after = db.skills.count_documents({"_id": "skill:local:fixture"})
@@ -92,7 +92,7 @@ def test_local_overlay_rejects_non_local_namespace(reset_db, seed_module,
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     fresh = importlib.reload(seed_module)
     fresh.seed()  # Must not raise
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     impostor = db.skills.count_documents({"_id": "skill:my-canonical-impostor"})
     canonical = db.skills.count_documents({"_id": "skill:query-analysis"})
     db.client.close()
@@ -110,7 +110,7 @@ def test_local_overlay_invalid_json_doesnt_block_canonical(reset_db, seed_module
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     fresh = importlib.reload(seed_module)
     fresh.seed()  # Must not raise
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     canonical = db.skills.count_documents({"_id": "skill:query-analysis"})
     db.client.close()
     assert canonical == 1

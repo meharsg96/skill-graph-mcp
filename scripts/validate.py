@@ -9,7 +9,7 @@ import os
 
 from pymongo import MongoClient
 
-DB_NAME = "skill_graph"
+DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 
 

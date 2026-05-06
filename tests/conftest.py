@@ -1,4 +1,22 @@
-"""Pytest fixtures: ephemeral MongoDB container + freshly seeded skill graph."""
+"""Pytest fixtures: ephemeral MongoDB container + freshly seeded skill graph.
+
+Two env vars are set HERE at module import time, BEFORE any fixture or
+target module loads, so module-level constants in server.py / seed.py /
+scripts capture the test values:
+
+  SKILL_GRAPH_DB         → `skill_graph_test`, isolated from the
+                           user's working `skill_graph` database. Pytest
+                           runs can never silently overwrite the real DB.
+  SKILL_GRAPH_LOCAL_DIR  → a guaranteed-empty sentinel path, isolated
+                           from the user's real `~/.skill-graph-local/`.
+                           Tests can opt-in to a fixture overlay via
+                           `with_local_dir`.
+
+Setting these in fixtures (even autouse session-scoped) is too late —
+pytest's fixture resolution order is not guaranteed to run an
+autouse-session fixture before another session-scoped fixture that
+imports the target module.
+"""
 
 import os
 import sys
@@ -12,20 +30,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-
-@pytest.fixture(scope="session", autouse=True)
-def _isolate_local_overlay():
-    """Pin SKILL_GRAPH_LOCAL_DIR to a guaranteed-empty path for the
-    test session unless a test fixture explicitly overrides it.
-
-    Without this, tests run against whatever lives in the user's real
-    `~/.skill-graph-local/` (private content imported via Layer 3 of the
-    local-overlay plan). That breaks tests pinned to canonical seed
-    counts the moment a user populates the default LOCAL_DIR.
-    """
-    sentinel = REPO_ROOT / "tests" / "_no_local_overlay_sentinel"
-    os.environ["SKILL_GRAPH_LOCAL_DIR"] = str(sentinel)
-    yield
+# Set BEFORE any target module is imported. server.py / seed.py /
+# scripts read these into module-level constants at import time.
+# Forced (not setdefault) so a populated env from the user's shell
+# can't leak into tests.
+os.environ["SKILL_GRAPH_LOCAL_DIR"] = str(REPO_ROOT / "tests" / "_no_local_overlay_sentinel")
+os.environ["SKILL_GRAPH_DB"] = "skill_graph_test"
 
 
 @pytest.fixture(scope="session")
@@ -59,9 +69,11 @@ def seed_module(mongo_container):
 
 @pytest.fixture(autouse=True)
 def reset_db(mongo_container):
-    """Clear skills/edges/runs before each test for isolation."""
+    """Clear skills/edges/runs before each test for isolation.
+    Targets `skill_graph_test` (per `_isolate_test_database`) so
+    tests can never collide with the user's working `skill_graph`."""
     client = MongoClient(os.environ["MONGODB_URI"])
-    db = client["skill_graph"]
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     db.skills.drop()
     db.edges.drop()
     db.runs.drop()

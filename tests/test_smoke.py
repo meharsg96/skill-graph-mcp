@@ -161,7 +161,7 @@ def test_traverse_excludes_inactive_skills(seeded):
 def test_log_tool_call_writes_runs_document(seeded):
     _call(seeded.get_skill_contract, skill_id="skill:query-analysis")
     client = MongoClient(os.environ["MONGODB_URI"])
-    runs = list(client["skill_graph"]["runs"].find({"tool": "get_skill_contract"}))
+    runs = list(client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]["runs"].find({"tool": "get_skill_contract"}))
     client.close()
     assert len(runs) == 1
     doc = runs[0]
@@ -195,11 +195,11 @@ def test_seed_preserves_runs_collection(seeded, seed_module):
     _call(seeded.get_skill_contract, skill_id="skill:query-analysis")
     _call(seeded.get_skill_contract, skill_id="skill:schema-review")
     client = MongoClient(os.environ["MONGODB_URI"])
-    before = client["skill_graph"]["runs"].count_documents({})
+    before = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]["runs"].count_documents({})
     assert before == 2
     # Re-seed: skills/edges drop, runs survive
     seed_module.seed()
-    after = client["skill_graph"]["runs"].count_documents({})
+    after = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]["runs"].count_documents({})
     client.close()
     assert after == before
 
@@ -223,7 +223,7 @@ def test_log_tool_call_records_error_and_reraises(seeded, monkeypatch):
         _call(seeded.get_skill_contract, skill_id="skill:query-analysis")
 
     client = MongoClient(os.environ["MONGODB_URI"])
-    runs = list(client["skill_graph"]["runs"].find({"tool": "get_skill_contract"}))
+    runs = list(client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]["runs"].find({"tool": "get_skill_contract"}))
     client.close()
     assert len(runs) == 1
     assert runs[0]["error"] == "RuntimeError"

@@ -112,7 +112,7 @@ def test_leafygreen_accessibility_rule_present_on_skill(seeded):
     domain_fields (would bloat the response on a hot path)."""
     import os
     from pymongo import MongoClient
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     skill = db.skills.find_one({"_id": "skill:leafygreen-ui"})
     rules = skill["domain_fields"]["accessibility_rules"]
     assert len(rules) >= 1

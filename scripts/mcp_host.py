@@ -52,7 +52,8 @@ def parse_args(argv):
 
 
 async def run(tool, kwargs):
-    env = {k: os.environ[k] for k in ("MONGODB_URI", "SESSION_ID") if k in os.environ}
+    forward_keys = ("MONGODB_URI", "SESSION_ID", "SKILL_GRAPH_DB", "SKILL_GRAPH_LOCAL_DIR")
+    env = {k: os.environ[k] for k in forward_keys if k in os.environ}
     transport = StdioTransport(command=sys.executable, args=["server.py"], env=env)
     async with Client(transport) as c:
         result = await c.call_tool(tool, kwargs)

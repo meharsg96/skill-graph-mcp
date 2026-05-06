@@ -37,7 +37,7 @@ def test_mcp_host_forwards_session_id_to_runs(seeded):
     )
     assert result.returncode == 0, f"mcp_host.py exited {result.returncode}: {result.stderr}"
 
-    runs = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]["runs"]
+    runs = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]["runs"]
     docs = list(runs.find({"session_id": session_id}))
     runs.database.client.close()
 
@@ -55,7 +55,7 @@ def test_mcp_host_without_session_id_falls_back(seeded):
     the fallback works through the real wire as well as in-process."""
     env = {k: v for k, v in os.environ.items() if k != "SESSION_ID"}
     env["MONGODB_URI"] = os.environ["MONGODB_URI"]
-    before = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]["runs"].count_documents({})
+    before = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]["runs"].count_documents({})
 
     result = subprocess.run(
         [sys.executable, "scripts/mcp_host.py", "get_skill_contract", "skill_id=skill:query-analysis"],
@@ -67,7 +67,7 @@ def test_mcp_host_without_session_id_falls_back(seeded):
     )
     assert result.returncode == 0, result.stderr
 
-    runs_col = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]["runs"]
+    runs_col = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]["runs"]
     after_docs = list(runs_col.find().sort("timestamp", -1).limit(runs_col.count_documents({}) - before))
     runs_col.database.client.close()
 

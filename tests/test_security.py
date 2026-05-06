@@ -15,7 +15,7 @@ def _insert_skill_with_path(path_value: str):
     """Bypass the seed and the validator's optional skill_path field by
     inserting a doc that satisfies the required-fields constraint. Returns
     the inserted skill_id so tests can clean up if needed."""
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     sid = "skill:test-malicious"
     db.skills.delete_one({"_id": sid})
     db.skills.insert_one({

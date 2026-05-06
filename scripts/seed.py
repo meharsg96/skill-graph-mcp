@@ -33,7 +33,7 @@ from pathlib import Path
 from pymongo import MongoClient
 from pymongo.errors import CollectionInvalid, WriteError
 
-DB_NAME = "skill_graph"
+DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 SCHEMA_DIR = Path(__file__).parent.parent / "schema"
 SKILLS_PATH = SCHEMA_DIR / "skills.json"

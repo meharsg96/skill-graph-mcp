@@ -81,7 +81,7 @@ def test_react_test_writer_dependency_constraint_present(seeded):
     same shape as the rest of the v2 ABI."""
     import os
     from pymongo import MongoClient
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     s = db.skills.find_one({"_id": "skill:react-test-writer"})
     constraint = s["dependency_constraints"]["skill:leafygreen-ui"]
     assert constraint["version_range"] == ">=1.0.0 <2.0.0"
@@ -92,7 +92,7 @@ def test_edge_to_react_test_writer_seeded_compatible(seeded):
     discoverable connection rather than only via $graphLookup."""
     import os
     from pymongo import MongoClient
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     edge = db.edges.find_one({"_id": "edge:leafygreen-ui->react-test-writer"})
     assert edge is not None
     assert edge["compatible"] is True

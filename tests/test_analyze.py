@@ -10,7 +10,7 @@ import analyze
 
 def _seed_runs(reset_db, docs):
     """Insert a fixture set of runs documents bypassing server.py."""
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     if docs:
         db.runs.insert_many(docs)
     return db.runs

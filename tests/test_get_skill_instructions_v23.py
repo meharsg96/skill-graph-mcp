@@ -70,7 +70,7 @@ def test_path_traversal_guard_still_works(seeded, call):
     guard. Reuse the test_security pattern."""
     import os
     from pymongo import MongoClient
-    db = MongoClient(os.environ["MONGODB_URI"])["skill_graph"]
+    db = MongoClient(os.environ["MONGODB_URI"])[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     db.skills.delete_one({"_id": "skill:test-malicious-v23"})
     db.skills.insert_one({
         "_id": "skill:test-malicious-v23",
