@@ -561,7 +561,13 @@
       "to_skill": "skill:schema-review",
       "produced_type": "query_patterns",
       "consumed_type": "query_patterns",
-      "compatible": true
+      "compatible": true,
+      "fields_used": [
+        "workload",
+        "queries[*].pattern",
+        "queries[*].frequency",
+        "queries[*].filters"
+      ]
     },
     {
       "_id": "edge:schema-review->code-gen",
@@ -569,7 +575,13 @@
       "to_skill": "skill:code-gen",
       "produced_type": "schema_recommendation",
       "consumed_type": "schema_recommendation",
-      "compatible": true
+      "compatible": true,
+      "fields_used": [
+        "collection",
+        "shape",
+        "indexes"
+      ],
+      "fields_used_note": "code-gen does not consume anti_patterns — those are reviewer-facing documentation, not codegen input. Consumer projection is narrower than producer output."
     },
     {
       "_id": "edge:code-gen->ui-builder",
@@ -577,7 +589,13 @@
       "to_skill": "skill:ui-builder",
       "produced_type": "application_code",
       "consumed_type": "application_code",
-      "compatible": true
+      "compatible": true,
+      "fields_used": [
+        "language",
+        "framework",
+        "files[*].path"
+      ],
+      "fields_used_note": "ui-builder needs the route surface (paths) to know what to render against; it does not parse files[*].content."
     },
     {
       "_id": "edge:code-gen->test-writer",
@@ -585,7 +603,14 @@
       "to_skill": "skill:test-writer",
       "produced_type": "application_code",
       "consumed_type": "application_code",
-      "compatible": true
+      "compatible": true,
+      "fields_used": [
+        "language",
+        "framework",
+        "files[*].path",
+        "files[*].content"
+      ],
+      "fields_used_note": "test-writer projects strictly more than ui-builder — same producer, different consumer needs. The contract is the union of consumer projections."
     },
     {
       "_id": "edge:leafygreen-ui->react-test-writer",
@@ -594,6 +619,11 @@
       "produced_type": "react_artifact",
       "consumed_type": "react_artifact",
       "compatible": true,
+      "fields_used": [
+        "components",
+        "props",
+        "exports"
+      ],
       "note": "Added in v2.2.0 to close R2 F5: react_artifact previously had no downstream test path"
     },
     {
@@ -603,7 +633,12 @@
       "produced_type": "schema_recommendation_v1",
       "consumed_type": "schema_recommendation",
       "compatible": false,
-      "note": "v1 output lacks index strategy fields required by code-gen v3"
+      "fields_used": [
+        "collection",
+        "shape",
+        "indexes"
+      ],
+      "note": "v1 output lacks indexes field; consumer projection requires it. Field-path-aware blast radius would catch this without enumerating downstream tree."
     }
   ]
 }
