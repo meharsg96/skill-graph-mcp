@@ -27,7 +27,10 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(REPO_ROOT / ".env")
 
 EXTRACTION_PROMPT = """\
 You are a fact extractor for a UI/code compliance validator.

@@ -1,2 +1,4 @@
 pymongo>=4.17.0
 fastmcp>=3.2.4
+python-dotenv>=1.0.0
+voyageai>=0.3.0
