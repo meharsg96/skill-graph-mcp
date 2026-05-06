@@ -20,7 +20,7 @@ def test_constraints_seeded(seeded):
     db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     count = db.constraints.count_documents({})
     client.close()
-    assert count == 3
+    assert count == 11
 
 
 def test_constraint_no_green_on_white_present(seeded):
@@ -129,12 +129,12 @@ def test_extract_fact_summary_importable():
 
 
 def test_extract_fact_summary_fails_gracefully_without_api_key(tmp_path):
-    """Returns error dict (not exception) when ANTHROPIC_API_KEY is absent."""
+    """Returns error dict (not exception) when OPENROUTER_API_KEY is absent."""
     import sys
     sys.path.insert(0, "scripts")
     import extract_fact_summary
 
-    orig = os.environ.pop("ANTHROPIC_API_KEY", None)
+    orig = os.environ.pop("OPENROUTER_API_KEY", None)
     try:
         artifact = tmp_path / "artifact.json"
         artifact.write_text('{"components": []}')
@@ -143,4 +143,4 @@ def test_extract_fact_summary_fails_gracefully_without_api_key(tmp_path):
         assert "error" in result
     finally:
         if orig is not None:
-            os.environ["ANTHROPIC_API_KEY"] = orig
+            os.environ["OPENROUTER_API_KEY"] = orig

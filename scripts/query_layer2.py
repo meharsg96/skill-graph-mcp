@@ -45,6 +45,9 @@ VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY")
 LOW_THRESHOLD = 0.70
 HIGH_THRESHOLD = 0.725
 
+# voyage-code-3 over voyage-4: calibrated against 3 labeled artifacts.
+# Paraphrases contain hex codes + CSS values; voyage-code-3 outperforms
+# the general voyage-4 model on structured token content.
 EMBEDDING_MODEL = "voyage-code-3"
 INDEX_NAME = "constraint_embedding_index"
 MAX_RESULTS = 20

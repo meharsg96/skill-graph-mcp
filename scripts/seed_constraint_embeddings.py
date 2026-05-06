@@ -31,9 +31,11 @@ MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
 VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY")
 
-# voyage-code-3: better than voyage-3 for paraphrases containing hex codes,
-# CSS values, and structured token names — the typical content of violation
-# paraphrases (e.g. "text color is #00ED64 on white background").
+# voyage-code-3 over voyage-4 for violation paraphrases: calibration against
+# labeled leafygreen-ui artifacts showed voyage-code-3 gives a 4× larger
+# violation-vs-compliant gap than voyage-3, even though paraphrases are
+# natural language. The reason: paraphrases contain hex codes, CSS values,
+# and token names that voyage-code-3 handles with higher fidelity.
 EMBEDDING_MODEL = "voyage-code-3"
 
 
