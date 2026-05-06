@@ -27,11 +27,7 @@ import os
 import sys
 from pathlib import Path
 
-from pymongo import MongoClient
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
-MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 
 EXTRACTION_PROMPT = """\
 You are a fact extractor for a UI/code compliance validator.
