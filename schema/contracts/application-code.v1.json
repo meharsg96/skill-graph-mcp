@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "schema:application-code:v1",
+  "title": "Application Code",
+  "description": "Generated code artifact from code-gen — files plus language/framework metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["language", "files"],
+  "properties": {
+    "language": { "type": "string", "minLength": 1 },
+    "framework": { "type": "string" },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "content"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "content": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "language": "typescript",
+  "framework": "react",
+  "files": [
+    {
+      "path": "src/api/users.ts",
+      "content": "export async function getUser(email: string) {\n  const r = await fetch(`/api/users/${email}`);\n  return r.json();\n}\n"
+    }
+  ]
+}
