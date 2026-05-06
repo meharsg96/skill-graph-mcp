@@ -46,6 +46,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTRACTS_DIR = REPO_ROOT / "schema" / "contracts"
 DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
+LOCAL_DIR = Path(
+    os.environ.get("SKILL_GRAPH_LOCAL_DIR", str(Path.home() / ".skill-graph-local"))
+).expanduser()
+LOCAL_CONTRACTS_DIR = LOCAL_DIR / "contracts"
 
 
 def schema_id_to_path(schema_id: str) -> Path:
@@ -53,7 +57,11 @@ def schema_id_to_path(schema_id: str) -> Path:
     if len(parts) != 3 or parts[0] != "schema":
         raise ValueError(f"unrecognized schema id: {schema_id!r}")
     _, name, version = parts
-    return CONTRACTS_DIR / f"{name}.{version}.json"
+    filename = f"{name}.{version}.json"
+    repo_path = CONTRACTS_DIR / filename
+    if repo_path.is_file():
+        return repo_path
+    return LOCAL_CONTRACTS_DIR / filename  # caller checks .is_file()
 
 
 def validate(skill_id: str, artifact_path: Path) -> dict:

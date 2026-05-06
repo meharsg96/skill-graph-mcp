@@ -21,9 +21,10 @@ def test_list_skills_default_returns_active_only(seeded, call):
         "skill:leafygreen-ui",
         "skill:react-test-writer",
         "skill:requirements-to-component",
+        "skill:spec-to-components",
         "skill:harness",
     }
-    assert r["count"] == 9
+    assert r["count"] == 10
     # Inactive skill is excluded by default
     assert "skill:schema-review-v1" not in ids
 
@@ -36,7 +37,7 @@ def test_list_skills_lifecycle_inactive(seeded, call):
 
 def test_list_skills_lifecycle_any_includes_inactive(seeded, call):
     r = call(seeded.list_skills, lifecycle="any")
-    assert r["count"] == 10   # 9 active + 1 inactive (schema-review-v1)
+    assert r["count"] == 11   # 10 active + 1 inactive (schema-review-v1)
     ids = {s["_id"] for s in r["results"]}
     assert "skill:schema-review-v1" in ids
     # `lifecycle: any` strips the filter entirely
@@ -45,8 +46,8 @@ def test_list_skills_lifecycle_any_includes_inactive(seeded, call):
 
 def test_list_skills_output_type_filter(seeded, call):
     r = call(seeded.list_skills, output_type="ui_components")
-    assert r["count"] == 1
-    assert r["results"][0]["_id"] == "skill:ui-builder"
+    assert r["count"] == 2
+    assert {s["_id"] for s in r["results"]} == {"skill:ui-builder", "skill:spec-to-components"}
 
 
 def test_list_skills_input_type_filter_returns_multiple(seeded, call):
