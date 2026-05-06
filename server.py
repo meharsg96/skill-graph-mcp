@@ -874,8 +874,10 @@ def impact_analysis(skill_id: str, max_depth: int = 10) -> dict:
     }
 
 
-_LAYER2_LOW_THRESHOLD = 0.82
-_LAYER2_HIGH_THRESHOLD = 0.90
+# Calibrated against 3 labeled leafygreen-ui artifacts (voyage-code-3).
+# Expand to 10-20 artifacts before treating these as production thresholds.
+_LAYER2_LOW_THRESHOLD = 0.70
+_LAYER2_HIGH_THRESHOLD = 0.725
 _LAYER2_INDEX = "constraint_embedding_index"
 
 
@@ -914,7 +916,7 @@ def check_constraints(skill_id: str, fact_summary: str) -> dict:
 
     try:
         vc = voyageai.Client(api_key=voyage_key)
-        embedding_result = vc.embed([fact_summary], model="voyage-3", input_type="query")
+        embedding_result = vc.embed([fact_summary], model="voyage-code-3", input_type="query")
         query_vector = embedding_result.embeddings[0]
     except Exception as e:
         return {"error": f"Voyage AI embedding failed: {e}"}

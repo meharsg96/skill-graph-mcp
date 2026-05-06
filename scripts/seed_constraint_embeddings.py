@@ -31,9 +31,10 @@ MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
 VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY")
 
-# voyage-3 for natural-language violation paraphrases.
-# Use voyage-code-3 only when paraphrases contain significant code/CSS.
-EMBEDDING_MODEL = "voyage-3"
+# voyage-code-3: better than voyage-3 for paraphrases containing hex codes,
+# CSS values, and structured token names — the typical content of violation
+# paraphrases (e.g. "text color is #00ED64 on white background").
+EMBEDDING_MODEL = "voyage-code-3"
 
 
 def embed_texts(texts: list[str], client) -> list[list[float]]:

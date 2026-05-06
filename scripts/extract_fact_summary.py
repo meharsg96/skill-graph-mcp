@@ -15,9 +15,10 @@ Usage:
     python scripts/extract_fact_summary.py skill:ui-builder artifact.json --raw
 
 Environment:
-    ANTHROPIC_API_KEY   Required for LLM extraction
-    MONGODB_URI         MongoDB connection (default: localhost:27017)
-    SKILL_GRAPH_DB      Database name (default: skill_graph)
+    OPENROUTER_API_KEY   Required for LLM extraction
+    OPENROUTER_MODEL     Model to use (default: anthropic/claude-haiku-4-5)
+    MONGODB_URI          MongoDB connection (default: localhost:27017)
+    SKILL_GRAPH_DB       Database name (default: skill_graph)
 """
 from __future__ import annotations
 
@@ -32,6 +33,9 @@ from dotenv import load_dotenv
 REPO_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(REPO_ROOT / ".env")
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "anthropic/claude-haiku-4-5"
+
 EXTRACTION_PROMPT = """\
 You are a fact extractor for a UI/code compliance validator.
 
@@ -40,16 +44,20 @@ a canonical fact summary: structured natural-language statements about what
 the artifact ACTUALLY DOES. Do not infer intent or evaluate correctness —
 only state observable facts.
 
+Critical rules for color observations:
+- ALWAYS state text color and background color together in one sentence.
+  Say "text color X on background Y" — never split them across sentences.
+- Include exact hex values. Do not paraphrase (#00ED64, not "green").
+
 Focus on:
-- Color values used (exact hex or token names)
-- Spacing/padding/margin values (exact px values or token multiples)
-- Typography: font sizes, weights, families
-- Component types and props
-- ARIA attributes and accessibility signals present or absent
-- Layout patterns
+- Text color paired with its background color (one combined sentence)
+- Spacing/padding/margin values as exact px amounts with their multiples
+- Typography: font size, weight, family
+- Component type, variant, and key props
+- ARIA attributes present or explicitly absent
 
 Format: plain prose, one sentence per observable fact. No bullet points.
-No evaluative language ("correctly", "incorrectly"). Just facts.
+No evaluative language. Just facts.
 
 Artifact:
 {artifact}
@@ -58,37 +66,40 @@ Artifact:
 
 def extract_fact_summary(skill_id: str, artifact_path: Path) -> dict:
     try:
-        import anthropic
+        from openai import OpenAI
     except ImportError:
-        return {"ok": False, "error": "anthropic package not installed. Run: pip install anthropic"}
+        return {"ok": False, "error": "openai package not installed. Run: pip install openai"}
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        return {"ok": False, "error": "ANTHROPIC_API_KEY not set"}
+        return {"ok": False, "error": "OPENROUTER_API_KEY not set"}
 
     if not artifact_path.is_file():
         return {"ok": False, "error": f"artifact not found: {artifact_path}"}
 
     artifact_text = artifact_path.read_text()
+    model = os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+    response = client.chat.completions.create(
+        model=model,
         max_tokens=512,
         messages=[{
             "role": "user",
-            "content": EXTRACTION_PROMPT.format(artifact=artifact_text)
-        }]
+            "content": EXTRACTION_PROMPT.format(artifact=artifact_text),
+        }],
     )
 
-    summary = message.content[0].text.strip()
+    summary = response.choices[0].message.content.strip()
+    usage = response.usage
     return {
         "ok": True,
         "skill_id": skill_id,
         "artifact": str(artifact_path),
+        "model": model,
         "fact_summary": summary,
-        "input_tokens": message.usage.input_tokens,
-        "output_tokens": message.usage.output_tokens,
+        "input_tokens": usage.prompt_tokens if usage else None,
+        "output_tokens": usage.completion_tokens if usage else None,
     }
 
 

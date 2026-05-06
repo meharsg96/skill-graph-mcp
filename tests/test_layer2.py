@@ -12,19 +12,19 @@ import query_layer2 as l2
 def test_verdict_clean():
     assert l2._verdict(0.0) == "clean"
     assert l2._verdict(0.50) == "clean"
-    assert l2._verdict(0.81) == "clean"
+    assert l2._verdict(0.68) == "clean"
     assert l2._verdict(l2.LOW_THRESHOLD - 0.001) == "clean"
 
 
 def test_verdict_flag():
     assert l2._verdict(l2.LOW_THRESHOLD) == "flag"
-    assert l2._verdict(0.85) == "flag"
+    assert l2._verdict(0.71) == "flag"
     assert l2._verdict(l2.HIGH_THRESHOLD - 0.001) == "flag"
 
 
 def test_verdict_escalate():
     assert l2._verdict(l2.HIGH_THRESHOLD) == "escalate"
-    assert l2._verdict(0.95) == "escalate"
+    assert l2._verdict(0.73) == "escalate"
     assert l2._verdict(1.0) == "escalate"
 
 
@@ -44,9 +44,10 @@ def test_verdict_boundary_high():
 
 def test_summary_counts_match_checks():
     """summary counts must sum to total and agree with the checks array."""
-    scores = [0.50, 0.85, 0.92, 0.78, 0.91]
+    # calibrated thresholds: LOW=0.70, HIGH=0.725
+    scores = [0.50, 0.71, 0.73, 0.68, 0.726]
     checks = [{"verdict": l2._verdict(s)} for s in scores]
-    # 0.50 → clean, 0.85 → flag, 0.92 → escalate, 0.78 → clean, 0.91 → escalate
+    # 0.50 → clean, 0.71 → flag, 0.73 → escalate, 0.68 → clean, 0.726 → escalate
     summary = {
         "total": len(checks),
         "escalate": sum(1 for c in checks if c["verdict"] == "escalate"),
@@ -74,9 +75,9 @@ def test_create_atlas_indexes_importable():
 
 def test_run_layer2_fails_gracefully_without_voyage_key(tmp_path, monkeypatch):
     """Returns error dict (not exception) when VOYAGE_API_KEY is absent
-    and ANTHROPIC_API_KEY is absent (fact extraction fails first)."""
+    and OPENROUTER_API_KEY is absent (fact extraction fails first)."""
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     artifact = tmp_path / "artifact.json"
     artifact.write_text('{"components": []}')

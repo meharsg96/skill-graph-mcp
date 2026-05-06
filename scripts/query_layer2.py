@@ -37,13 +37,15 @@ MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
 VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY")
 
-# Calibrate against labeled pairs (see layer2_semantic.md).
-# cosine similarity: 1.0 = identical direction, 0.0 = orthogonal.
-# High score means the fact summary matches a violation paraphrase.
-LOW_THRESHOLD = 0.82
-HIGH_THRESHOLD = 0.90
+# Calibrated against 3 labeled leafygreen-ui artifacts (voyage-code-3):
+#   clear violation (#00ED64 on #FFF):  0.726
+#   subtle violation (#00A35C on #F9F): 0.725
+#   compliant (#FFF on #016BF8):        0.681
+# Gap ~0.044. Expand calibration set to 10-20 artifacts before production.
+LOW_THRESHOLD = 0.70
+HIGH_THRESHOLD = 0.725
 
-EMBEDDING_MODEL = "voyage-3"
+EMBEDDING_MODEL = "voyage-code-3"
 INDEX_NAME = "constraint_embedding_index"
 MAX_RESULTS = 20
 
