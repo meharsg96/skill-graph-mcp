@@ -494,6 +494,36 @@
       "skill_path": "skills/requirements-to-component/SKILL.md"
     },
     {
+      "_id": "skill:spec-to-components",
+      "name": "Spec to Components Renderer",
+      "description": "Convert a typed UI component specification (ui_spec) into React components. Use when requirements-to-component has produced a ui_spec and the next step is rendering. Closes the requirements-backed UI path (requirements-to-component → spec-to-components), parallel to the data-backed path (code-gen → ui-builder). CHOOSE THIS when your entry point is free-text requirements; choose skill:ui-builder when your entry point is a schema_recommendation.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "ui_spec",
+        "schema": "schema:ui-spec:v1"
+      },
+      "output": {
+        "type": "ui_components",
+        "schema": "schema:ui-components:v1"
+      },
+      "dependencies": [
+        "skill:requirements-to-component"
+      ],
+      "dependency_constraints": {
+        "skill:requirements-to-component": {
+          "version_range": ">=1.0.0 <2.0.0"
+        }
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "component_library": "react",
+        "added_in": "v2.8.0",
+        "added_to_close": "R5 findings F4/F5 — no active skill consumed ui_spec, causing routing misses to the requirements-backed UI path; agent flagged the dead-end twice unprompted"
+      },
+      "skill_path": "skills/spec-to-components/SKILL.md"
+    },
+    {
       "_id": "skill:harness",
       "name": "Skill Graph Harness",
       "description": "Self-documenting meta-skill: how to operate the skill-graph MCP server itself. Use get_skill_instructions(skill:harness) to learn about SESSION_ID conventions, TTL behavior, analyze.py recipes, mongodump archival, scope tradeoffs, and common pitfalls. Always reachable; queryable through the same tools as any other skill.",
@@ -625,6 +655,21 @@
         "exports"
       ],
       "note": "Added in v2.2.0 to close R2 F5: react_artifact previously had no downstream test path"
+    },
+    {
+      "_id": "edge:requirements-to-component->spec-to-components",
+      "from_skill": "skill:requirements-to-component",
+      "to_skill": "skill:spec-to-components",
+      "produced_type": "ui_spec",
+      "consumed_type": "ui_spec",
+      "compatible": true,
+      "fields_used": [
+        "components",
+        "layout",
+        "interactions",
+        "accessibility"
+      ],
+      "note": "Added v2.8.0 to close R5 F4/F5: ui_spec had no active consumer, misrouting requirements-backed UI tasks to leafygreen-ui"
     },
     {
       "_id": "edge:schema-review-v1->code-gen",
