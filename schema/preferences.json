@@ -1,8 +1,8 @@
 {
   "preferences": [
     {
-      "_id": "pref:owner:lg-flavour-not-cage",
-      "owner": "owner",
+      "_id": "pref:cyborg:lg-flavour-not-cage",
+      "owner": "cyborg",
       "scope": "skill",
       "applies_to_skill_id": "skill:leafygreen-ui",
       "category": "house_style",

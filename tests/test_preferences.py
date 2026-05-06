@@ -15,8 +15,8 @@ from pymongo.errors import WriteError
 
 def test_lg_flavour_preference_seeded(seeded, call):
     client = MongoClient(os.environ["MONGODB_URI"])
-    db = client["skill_graph"]
-    p = db.preferences.find_one({"_id": "pref:owner:lg-flavour-not-cage"})
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
+    p = db.preferences.find_one({"_id": "pref:cyborg:lg-flavour-not-cage"})
     client.close()
     assert p is not None
     assert p["scope"] == "skill"
@@ -27,7 +27,7 @@ def test_lg_flavour_preference_seeded(seeded, call):
 
 def test_preferences_indexes_present(seeded, call):
     client = MongoClient(os.environ["MONGODB_URI"])
-    db = client["skill_graph"]
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     indexes = {ix["name"] for ix in db.preferences.list_indexes()}
     client.close()
     assert "owner_1" in indexes
@@ -39,7 +39,7 @@ def test_preferences_seed_idempotent(seeded, seed_module):
     """Re-seeding drops + recreates preferences; the LG-flavour doc
     is always present after seed completes."""
     client = MongoClient(os.environ["MONGODB_URI"])
-    db = client["skill_graph"]
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     before = db.preferences.count_documents({})
     seed_module.seed()
     after = db.preferences.count_documents({})
@@ -50,7 +50,7 @@ def test_preferences_seed_idempotent(seeded, seed_module):
 def test_preference_validator_requires_scope_enum(seeded):
     """scope is enum [skill, category, global] — anything else rejected."""
     client = MongoClient(os.environ["MONGODB_URI"])
-    db = client["skill_graph"]
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     bad = {
         "_id": "pref:test:invalid-scope",
         "owner": "owner",
@@ -68,7 +68,7 @@ def test_preference_validator_requires_required_fields(seeded):
     """owner, scope, category, name, version are required — missing any
     of them is a schema violation, not application logic."""
     client = MongoClient(os.environ["MONGODB_URI"])
-    db = client["skill_graph"]
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     incomplete = {
         "_id": "pref:test:incomplete",
         "owner": "owner",
@@ -90,7 +90,7 @@ def test_get_preferences_returns_lg_flavour_for_leafygreen(seeded):
     r = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui")
     assert r["count"] == 1
     assert r["source"] == "preferences"
-    assert r["preferences"][0]["_id"] == "pref:owner:lg-flavour-not-cage"
+    assert r["preferences"][0]["_id"] == "pref:cyborg:lg-flavour-not-cage"
 
 
 def test_get_preferences_unrelated_skill_returns_zero(seeded):
@@ -105,7 +105,7 @@ def test_get_preferences_unknown_skill_errors(seeded):
 
 
 def test_get_preferences_owner_filter(seeded):
-    r = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui", owner="owner")
+    r = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui", owner="cyborg")
     assert r["count"] == 1
     r2 = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui", owner="someone-else")
     assert r2["count"] == 0
@@ -137,7 +137,7 @@ def test_get_preferences_global_scope_applies_everywhere(seeded):
         r2 = _call(seeded.get_preferences, skill_id="skill:leafygreen-ui")
         # both global-temp AND lg-flavour-not-cage should match
         ids = {p["_id"] for p in r2["preferences"]}
-        assert ids == {"pref:test:global-temp", "pref:owner:lg-flavour-not-cage"}
+        assert ids == {"pref:test:global-temp", "pref:cyborg:lg-flavour-not-cage"}
     finally:
         db.preferences.delete_one({"_id": "pref:test:global-temp"})
 
@@ -156,12 +156,12 @@ def test_list_preferences_no_filters_returns_all(seeded):
     r = _call(seeded.list_preferences)
     assert r["count"] >= 1
     ids = {p["_id"] for p in r["preferences"]}
-    assert "pref:owner:lg-flavour-not-cage" in ids
+    assert "pref:cyborg:lg-flavour-not-cage" in ids
     assert r["source"] == "preferences"
 
 
 def test_list_preferences_owner_filter(seeded):
-    r = _call(seeded.list_preferences, owner="owner")
+    r = _call(seeded.list_preferences, owner="cyborg")
     assert r["count"] == 1
     r2 = _call(seeded.list_preferences, owner="someone-else")
     assert r2["count"] == 0
