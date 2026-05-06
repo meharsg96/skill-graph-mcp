@@ -11,8 +11,19 @@ compatibility, top-level `input_type` and `output_type` fields are
 derived from `input.type`/`output.type` at insert time so existing
 v1 tools keep working.
 
+Local-only overlay (v2.5.0): if SKILL_GRAPH_LOCAL_DIR is set and the
+directory exists, additional skills/parameters/preferences in that
+directory are loaded *after* the canonical seed via idempotent upsert.
+Local docs MUST use the `skill:local:<slug>` namespace; canonical
+namespaces in the local overlay are rejected. The local directory is
+expected to live OUTSIDE the repository (default ~/.skill-graph-local/);
+this is the source of the leak-resistance — local content cannot enter
+git from a path outside the working tree.
+
 Environment:
-    MONGODB_URI    Mongo connection string (default: mongodb://localhost:27017)
+    MONGODB_URI            Mongo connection string (default: mongodb://localhost:27017)
+    SKILL_GRAPH_LOCAL_DIR  Optional directory of local-only overlay docs
+                           (default: ~/.skill-graph-local/)
 """
 
 import json
@@ -20,7 +31,7 @@ import os
 from pathlib import Path
 
 from pymongo import MongoClient
-from pymongo.errors import CollectionInvalid
+from pymongo.errors import CollectionInvalid, WriteError
 
 DB_NAME = "skill_graph"
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
@@ -28,6 +39,11 @@ SCHEMA_DIR = Path(__file__).parent.parent / "schema"
 SKILLS_PATH = SCHEMA_DIR / "skills.json"
 PARAMETERS_PATH = SCHEMA_DIR / "parameters.json"
 PREFERENCES_PATH = SCHEMA_DIR / "preferences.json"
+
+LOCAL_DIR = Path(
+    os.environ.get("SKILL_GRAPH_LOCAL_DIR", str(Path.home() / ".skill-graph-local"))
+).expanduser()
+LOCAL_NAMESPACE_PREFIX = "skill:local:"
 
 SKILL_VALIDATOR = {
     "$jsonSchema": {
@@ -180,12 +196,91 @@ def seed():
     runs_count = db.runs.estimated_document_count()
     print(f"runs collection preserved: {runs_count} existing documents")
 
+    if LOCAL_DIR.is_dir():
+        _load_local_overlay(db)
+
     for state in ["active", "inactive"]:
         count = db.skills.count_documents({"lifecycle": state})
         if count:
             print(f"  {state}: {count}")
 
     print("\nDone. Run 'python scripts/validate.py' to test.")
+
+
+def _load_local_overlay(db) -> None:
+    """Load private skills/parameters/preferences from LOCAL_DIR.
+
+    Idempotent: each doc is upserted by `_id`, so re-seeding updates
+    existing local entries rather than duplicating. Schema validation
+    failures on individual local docs are logged but do not crash the
+    seed — canonical content stays loaded even if a local doc is bad.
+
+    Hard guards:
+      - skills.json entries must use `skill:local:` namespace
+      - parameters.json entries' skill_id must reference a local skill
+      - preferences.json entries' applies_to_skill_id (if set) must
+        reference a local skill
+
+    These prevent local content from masquerading as canonical data.
+    """
+    print(f"\nlocal overlay: loading from {LOCAL_DIR}")
+    skill_count = _overlay_load(
+        db.skills, LOCAL_DIR / "skills.json", "skills",
+        guard=lambda d: d["_id"].startswith(LOCAL_NAMESPACE_PREFIX),
+        guard_msg=f"_id must start with '{LOCAL_NAMESPACE_PREFIX}'",
+        compat=_derive_compat_fields,
+    )
+    if skill_count:
+        print(f"  skills upserted:      {skill_count}")
+
+    param_count = _overlay_load(
+        db.parameters, LOCAL_DIR / "parameters.json", "parameters",
+        guard=lambda d: d["skill_id"].startswith(LOCAL_NAMESPACE_PREFIX),
+        guard_msg=f"skill_id must start with '{LOCAL_NAMESPACE_PREFIX}'",
+    )
+    if param_count:
+        print(f"  parameters upserted:  {param_count}")
+
+    pref_count = _overlay_load(
+        db.preferences, LOCAL_DIR / "preferences.json", "preferences",
+        guard=lambda d: (
+            d.get("scope") != "skill"
+            or d.get("applies_to_skill_id", "").startswith(LOCAL_NAMESPACE_PREFIX)
+        ),
+        guard_msg=f"applies_to_skill_id must start with '{LOCAL_NAMESPACE_PREFIX}' when scope=skill",
+    )
+    if pref_count:
+        print(f"  preferences upserted: {pref_count}")
+
+
+def _overlay_load(collection, path: Path, key: str, guard, guard_msg: str,
+                  compat=None) -> int:
+    """Read a local-overlay JSON file and upsert each doc under `key`.
+
+    `guard(doc)` must return True; otherwise the doc is skipped with a
+    clear message. `compat`, if provided, runs over each doc before
+    insert (used for v1 input_type/output_type derivation on skills)."""
+    if not path.is_file():
+        return 0
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"  WARNING: {path.name} is not valid JSON ({e}); skipping overlay")
+        return 0
+    docs = data.get(key) or []
+    upserted = 0
+    for doc in docs:
+        if not guard(doc):
+            print(f"  REJECTED {key}/{doc.get('_id', '<no _id>')}: {guard_msg}")
+            continue
+        if compat is not None:
+            doc = compat(doc)
+        try:
+            collection.replace_one({"_id": doc["_id"]}, doc, upsert=True)
+            upserted += 1
+        except WriteError as e:
+            print(f"  REJECTED {key}/{doc.get('_id', '<no _id>')}: {e.details.get('errmsg', e)}")
+    return upserted
 
 
 if __name__ == "__main__":

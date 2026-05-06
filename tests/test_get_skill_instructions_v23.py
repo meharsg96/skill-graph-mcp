@@ -86,5 +86,5 @@ def test_path_traversal_guard_still_works(seeded, call):
     })
     r = call(seeded.get_skill_instructions, skill_id="skill:test-malicious-v23")
     assert "error" in r
-    assert "escapes the repository root" in r["error"]
+    assert "escapes trusted roots" in r["error"]
     assert "content" not in r

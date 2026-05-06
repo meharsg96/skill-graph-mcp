@@ -38,6 +38,17 @@ DB_NAME = "skill_graph"
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
 REPO_ROOT = Path(__file__).resolve().parent
 
+# Trusted roots for resolving skill_path. Canonical skills live under
+# REPO_ROOT; local-overlay skills (v2.5+) live under LOCAL_DIR if the
+# user has populated it. Any path that doesn't resolve under one of
+# these is rejected as a traversal attempt.
+LOCAL_DIR = Path(
+    os.environ.get("SKILL_GRAPH_LOCAL_DIR", str(Path.home() / ".skill-graph-local"))
+).expanduser()
+TRUSTED_ROOTS = [REPO_ROOT]
+if LOCAL_DIR.is_dir():
+    TRUSTED_ROOTS.append(LOCAL_DIR.resolve())
+
 # MCP's stdio transport spawns servers with an empty env by default — the host
 # must opt in to forwarding any variable. To keep session-scoped aggregations
 # meaningful even when the host doesn't forward SESSION_ID, fall back to a
@@ -105,6 +116,17 @@ def log_tool_call(func):
 
 
 # ---------- internal helpers ----------
+
+def _is_subpath(child: Path, parent: Path) -> bool:
+    """True iff `child` is `parent` or a descendant of it. Both must be
+    resolved absolute paths. Used to enforce the trusted-root boundary
+    on skill_path resolution (canonical REPO_ROOT and v2.5 LOCAL_DIR)."""
+    try:
+        child.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
 
 def _active_skill(skill_id: str, projection: dict | None = None):
     """Find an active skill by id, or None."""
@@ -306,6 +328,47 @@ def get_layouts(skill_id: str, breakpoint: str = None, tenant: str = None) -> di
     return result
 
 
+def _parse_version(v: str) -> tuple[int, int, int] | None:
+    parts = v.strip().split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+
+def _version_range_satisfied(version: str, range_expr: str) -> bool | None:
+    """Return True/False if the range can be parsed and evaluated, else None.
+
+    Supports space-separated clauses with operators >=, <=, >, <, ==, =.
+    Versions are dotted triples (semver core, no pre-release suffix).
+    None signals "could not interpret" — caller should not flag a violation.
+    """
+    ver = _parse_version(version) if version else None
+    if ver is None or not range_expr:
+        return None
+    ops = (">=", "<=", "==", "=", ">", "<")
+    for clause in range_expr.split():
+        op = next((o for o in ops if clause.startswith(o)), None)
+        if op is None:
+            return None
+        rhs = _parse_version(clause[len(op):])
+        if rhs is None:
+            return None
+        if op == ">=" and not (ver >= rhs):
+            return False
+        if op == "<=" and not (ver <= rhs):
+            return False
+        if op in ("==", "=") and not (ver == rhs):
+            return False
+        if op == ">" and not (ver > rhs):
+            return False
+        if op == "<" and not (ver < rhs):
+            return False
+    return True
+
+
 @mcp.tool()
 @log_tool_call
 def validate_chain(skill_ids: list[str]) -> dict:
@@ -315,6 +378,8 @@ def validate_chain(skill_ids: list[str]) -> dict:
       1. every skill exists and is `lifecycle: "active"`
       2. each skill's `output_type` matches the next skill's `input_type`
       3. every skill's direct dependencies appear earlier in the chain
+      4. each declared `dependency_constraints[dep].version_range`
+         is satisfied by the dep skill's `version`
 
     This validates direct dependencies only. For the full transitive
     closure of a skill's dependency tree, call `traverse_dependencies`.
@@ -358,6 +423,41 @@ def validate_chain(skill_ids: list[str]) -> dict:
                         "requires": dep_name
                     })
         seen.add(sid)
+
+    # Resolve version_range against any dep we can see (in-chain or not).
+    # Skills not in skill_ids are fetched here so a constraint like
+    # ">=1.0.0 <2.0.0" is checked even when the dep is implicit.
+    extra_dep_ids = {
+        dep
+        for sid in skill_ids
+        if sid in skills
+        for dep in (skills[sid].get("dependency_constraints") or {}).keys()
+        if dep not in skills
+    }
+    if extra_dep_ids:
+        for s in db.skills.find({"_id": {"$in": list(extra_dep_ids)}}):
+            skills[s["_id"]] = s
+
+    for sid in skill_ids:
+        if sid not in skills:
+            continue
+        constraints = skills[sid].get("dependency_constraints") or {}
+        for dep_id, spec in constraints.items():
+            range_expr = (spec or {}).get("version_range")
+            if not range_expr:
+                continue
+            dep = skills.get(dep_id)
+            if not dep:
+                continue
+            ok = _version_range_satisfied(dep.get("version", ""), range_expr)
+            if ok is False:
+                errors.append({
+                    "type": "version_constraint_violation",
+                    "skill": skills[sid]["name"],
+                    "requires": dep.get("name", dep_id),
+                    "version_range": range_expr,
+                    "actual_version": dep.get("version", ""),
+                })
 
     return {
         "valid": len(errors) == 0,
@@ -542,7 +642,9 @@ def get_skill_instructions(skill_id: str) -> dict:
         `db.runs` for the audit trail
 
     Bounded — does not traverse beyond direct consumers. Refuses any
-    `skill_path` that escapes the repository root.
+    `skill_path` that does not resolve under a trusted root (REPO_ROOT
+    for canonical skills; LOCAL_DIR for v2.5+ local-overlay skills, if
+    SKILL_GRAPH_LOCAL_DIR is set and exists).
     """
     skill = _active_skill(
         skill_id,
@@ -554,11 +656,22 @@ def get_skill_instructions(skill_id: str) -> dict:
     rel = skill.get("skill_path")
     if not rel:
         return {"error": f"Skill '{skill_id}' has no skill_path"}
-    path = (REPO_ROOT / rel).resolve()
-    try:
-        path.relative_to(REPO_ROOT)
-    except ValueError:
-        return {"error": f"skill_path '{rel}' escapes the repository root"}
+    # Absolute paths resolve as-is. Relative paths resolve against each
+    # trusted root in order — first existing match wins so local-overlay
+    # skills resolve under LOCAL_DIR while canonical skills resolve under
+    # REPO_ROOT. Trusted-root check then enforces the boundary.
+    candidate = Path(rel)
+    if candidate.is_absolute():
+        path = candidate.resolve()
+    else:
+        path = (REPO_ROOT / candidate).resolve()
+        for root in TRUSTED_ROOTS:
+            attempt = (root / candidate).resolve()
+            if attempt.is_file():
+                path = attempt
+                break
+    if not any(_is_subpath(path, root) for root in TRUSTED_ROOTS):
+        return {"error": f"skill_path '{rel}' escapes trusted roots"}
 
     accessibility_rules = (
         skill.get("domain_fields", {}).get("accessibility_rules") or []

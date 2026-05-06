@@ -127,6 +127,23 @@ def test_validate_chain_missing_dependency(seeded):
     assert "missing_dependency" in types
 
 
+def test_validate_chain_version_constraint_violation(seeded):
+    # schema-review declares dependency_constraints on query-analysis: ">=1.0.0 <2.0.0".
+    # Bump query-analysis to 2.0.0 to push it out of range, then restore.
+    db = seeded.db
+    original = db.skills.find_one({"_id": "skill:query-analysis"}, {"version": 1})["version"]
+    db.skills.update_one({"_id": "skill:query-analysis"}, {"$set": {"version": "2.0.0"}})
+    try:
+        result = _call(seeded.validate_chain, skill_ids=[
+            "skill:query-analysis", "skill:schema-review",
+        ])
+        types = {e["type"] for e in result["errors"]}
+        assert "version_constraint_violation" in types
+        assert result["valid"] is False
+    finally:
+        db.skills.update_one({"_id": "skill:query-analysis"}, {"$set": {"version": original}})
+
+
 # ----- traverse_dependencies invariant: inactive skills never appear -----
 
 def test_traverse_excludes_inactive_skills(seeded):

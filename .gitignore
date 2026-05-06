@@ -26,3 +26,13 @@ notes/
 # Generated demo artifacts (e.g. R1 outputs from Claude Code)
 login-*.html
 *-artifact.html
+
+# Local-overlay skills (v2.5+). Defense-in-depth: the canonical location
+# is OUTSIDE the repo entirely (~/.skill-graph-local/), so these patterns
+# are belt-and-suspenders for the case where local content is accidentally
+# put inside the repo working tree.
+schema/local/
+skills/local/
+*-local.json
+*.local.json
+.skill-graph-local/

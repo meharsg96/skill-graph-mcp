@@ -37,7 +37,7 @@ def test_get_skill_instructions_refuses_path_traversal(seeded, call):
     sid = _insert_skill_with_path("../../etc/passwd")
     r = call(seeded.get_skill_instructions, skill_id=sid)
     assert "error" in r
-    assert "escapes the repository root" in r["error"]
+    assert "escapes trusted roots" in r["error"]
 
 
 def test_get_skill_instructions_refuses_absolute_path(seeded, call):

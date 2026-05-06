@@ -1,0 +1,19 @@
+{
+  "skills": [
+    {
+      "_id": "skill:local:fixture",
+      "name": "Local Fixture Skill",
+      "description": "Synthetic test fixture for the local-overlay mechanism.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input":  {"type": "fixture_query",   "schema": "schema:fixture-query:v1"},
+      "output": {"type": "fixture_artifact", "schema": "schema:fixture-artifact:v1"},
+      "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": [],
+      "domain_fields": {},
+      "skill_path": "skills/local/fixture/SKILL.md"
+    }
+  ],
+  "edges": []
+}
