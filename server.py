@@ -9,6 +9,7 @@ in shape. v2 adds:
   - search_skills(query)               — Mongo text-index search
   - get_skill_instructions(skill_id)   — read the skill's markdown body
   - impact_analysis(skill_id)          — direct + transitive consumers + incompatible edges
+  - get_preferences(skill_id, ...)     — policy/style/conventions from db.preferences (v2.6)
 
 Tenant-aware retrieval: get_tokens / get_components / get_layouts now accept
 an optional `tenant=` argument. When given, the parameters collection is
@@ -326,6 +327,49 @@ def get_layouts(skill_id: str, breakpoint: str = None, tenant: str = None) -> di
     if layout_grids:
         result["layout_grids"] = layout_grids
     return result
+
+
+@mcp.tool()
+@log_tool_call
+def get_preferences(skill_id: str, owner: str = None, category: str = None) -> dict:
+    """Get policy preferences that apply to a skill.
+
+    Preferences (introduced v2.4) carry policy/style/conventions —
+    distinct from `parameters`, which carry per-tenant data overrides.
+    A skill is governed by every preference where `scope == "global"` OR
+    (`scope == "skill"` AND `applies_to_skill_id == skill_id`).
+
+    Optional filters:
+      - `owner`     — restrict to one owner's policies
+      - `category`  — restrict to a category (e.g. `house_style`)
+
+    Response carries `source: "preferences"` for provenance and is
+    recorded in `db.runs` like every other graph tool. The skill must
+    exist and be active.
+    """
+    skill = _active_skill(skill_id, {"name": 1})
+    if not skill:
+        return {"error": f"Skill '{skill_id}' not found or not active"}
+
+    match = {
+        "$or": [
+            {"scope": "global"},
+            {"scope": "skill", "applies_to_skill_id": skill_id},
+        ]
+    }
+    if owner is not None:
+        match["owner"] = owner
+    if category is not None:
+        match["category"] = category
+
+    docs = list(db.preferences.find(match))
+    return {
+        "skill": skill["name"],
+        "source": "preferences",
+        "filter": {k: v for k, v in {"owner": owner, "category": category}.items() if v},
+        "count": len(docs),
+        "preferences": docs,
+    }
 
 
 def _parse_version(v: str) -> tuple[int, int, int] | None:
