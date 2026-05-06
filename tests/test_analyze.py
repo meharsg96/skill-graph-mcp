@@ -100,7 +100,8 @@ def test_routing_tools_includes_v2_1_discovery_surface():
     is added that's clearly discovery/navigation, this test forces
     contributors to either add it here or document why it's work."""
     expected = {"route_task", "validate_chain", "search_skills",
-                "impact_analysis", "list_skills", "traverse_dependencies"}
+                "impact_analysis", "list_skills", "list_preferences",
+                "traverse_dependencies"}
     assert analyze.ROUTING_TOOLS == expected
 
 

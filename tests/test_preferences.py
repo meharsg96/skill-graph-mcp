@@ -148,3 +148,58 @@ def test_get_preferences_logged_in_runs(seeded):
     _call(seeded.get_preferences, skill_id="skill:leafygreen-ui")
     after = db.runs.count_documents({"tool": "get_preferences"})
     assert after == before + 1
+
+
+# ---------- list_preferences (v2.7) — catalogue-style enumeration ----------
+
+def test_list_preferences_no_filters_returns_all(seeded):
+    r = _call(seeded.list_preferences)
+    assert r["count"] >= 1
+    ids = {p["_id"] for p in r["preferences"]}
+    assert "pref:owner:lg-flavour-not-cage" in ids
+    assert r["source"] == "preferences"
+
+
+def test_list_preferences_owner_filter(seeded):
+    r = _call(seeded.list_preferences, owner="owner")
+    assert r["count"] == 1
+    r2 = _call(seeded.list_preferences, owner="someone-else")
+    assert r2["count"] == 0
+
+
+def test_list_preferences_category_filter(seeded):
+    r = _call(seeded.list_preferences, category="house_style")
+    assert r["count"] == 1
+    r2 = _call(seeded.list_preferences, category="security")
+    assert r2["count"] == 0
+
+
+def test_list_preferences_scope_filter(seeded):
+    r = _call(seeded.list_preferences, scope="skill")
+    assert r["count"] == 1
+    r2 = _call(seeded.list_preferences, scope="global")
+    assert r2["count"] == 0
+
+
+def test_list_preferences_invalid_scope_errors(seeded):
+    r = _call(seeded.list_preferences, scope="everywhere")
+    assert "error" in r
+
+
+def test_list_preferences_logged_in_runs(seeded):
+    db = seeded.db
+    before = db.runs.count_documents({"tool": "list_preferences"})
+    _call(seeded.list_preferences)
+    after = db.runs.count_documents({"tool": "list_preferences"})
+    assert after == before + 1
+
+
+def test_list_preferences_classified_as_routing(seeded):
+    """list_preferences is a discovery/navigation tool — must be in
+    ROUTING_TOOLS so the routing_ratio metric counts it correctly.
+    Closes R5 F1: graph-wide preference questions should not collapse
+    the routing ratio toward zero just because of API shape."""
+    import sys
+    sys.path.insert(0, "scripts")
+    import analyze
+    assert "list_preferences" in analyze.ROUTING_TOOLS

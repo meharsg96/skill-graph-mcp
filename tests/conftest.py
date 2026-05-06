@@ -13,6 +13,21 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_local_overlay():
+    """Pin SKILL_GRAPH_LOCAL_DIR to a guaranteed-empty path for the
+    test session unless a test fixture explicitly overrides it.
+
+    Without this, tests run against whatever lives in the user's real
+    `~/.skill-graph-local/` (private content imported via Layer 3 of the
+    local-overlay plan). That breaks tests pinned to canonical seed
+    counts the moment a user populates the default LOCAL_DIR.
+    """
+    sentinel = REPO_ROOT / "tests" / "_no_local_overlay_sentinel"
+    os.environ["SKILL_GRAPH_LOCAL_DIR"] = str(sentinel)
+    yield
+
+
 @pytest.fixture(scope="session")
 def mongo_container():
     """Start a Mongo testcontainer, unless MONGODB_URI is already set.

@@ -31,9 +31,12 @@ def with_local_dir(reset_db, seed_module, server_module, monkeypatch):
 
 
 @pytest.fixture
-def with_no_local_dir(reset_db, seed_module, monkeypatch):
-    """Run a clean seed without any LOCAL_DIR set."""
-    monkeypatch.delenv("SKILL_GRAPH_LOCAL_DIR", raising=False)
+def with_no_local_dir(reset_db, seed_module, monkeypatch, tmp_path):
+    """Run a clean seed with LOCAL_DIR pointing at a guaranteed-empty
+    path. Deleting the env var would let seed.py fall back to the
+    user's real `~/.skill-graph-local/`, which may be populated."""
+    empty = tmp_path / "definitely-empty"
+    monkeypatch.setenv("SKILL_GRAPH_LOCAL_DIR", str(empty))
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     fresh_seed = importlib.reload(seed_module)
     fresh_seed.seed()

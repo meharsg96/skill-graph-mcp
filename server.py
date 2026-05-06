@@ -10,6 +10,7 @@ in shape. v2 adds:
   - get_skill_instructions(skill_id)   — read the skill's markdown body
   - impact_analysis(skill_id)          — direct + transitive consumers + incompatible edges
   - get_preferences(skill_id, ...)     — policy/style/conventions from db.preferences (v2.6)
+  - list_preferences(owner=, ...)      — catalogue-style enumeration (v2.7)
 
 Tenant-aware retrieval: get_tokens / get_components / get_layouts now accept
 an optional `tenant=` argument. When given, the parameters collection is
@@ -367,6 +368,54 @@ def get_preferences(skill_id: str, owner: str = None, category: str = None) -> d
         "skill": skill["name"],
         "source": "preferences",
         "filter": {k: v for k, v in {"owner": owner, "category": category}.items() if v},
+        "count": len(docs),
+        "preferences": docs,
+    }
+
+
+@mcp.tool()
+@log_tool_call
+def list_preferences(
+    owner: str = None,
+    category: str = None,
+    scope: str = None,
+) -> dict:
+    """Catalogue-style enumeration of preferences across the graph.
+
+    Companion to `get_preferences(skill_id, ...)` — same relationship as
+    `list_skills` to `search_skills`. Use when the question is about
+    policies *across* the graph (e.g. "every house_style policy",
+    "every preference owner=X declares"), not about a specific skill.
+
+    Added v2.7 after R5 found that asking the per-skill tool 9 times to
+    answer a graph-wide question dominated the work-call count and
+    pushed the routing ratio off the design baseline. The fix is at the
+    API surface: catalogue queries deserve a catalogue tool.
+
+    Filters (all optional, AND-combined):
+      - `owner`     — restrict to one owner's preferences
+      - `category`  — restrict to a category (e.g. `house_style`)
+      - `scope`     — restrict to scope value (`skill` | `category` | `global`)
+
+    Returns a flat array of preference docs. No `skill_id` required;
+    the returned `applies_to_skill_id` field tells the caller which
+    skill each one targets (or absent for `scope: global`).
+    """
+    if scope is not None and scope not in {"skill", "category", "global"}:
+        return {
+            "error": f"scope must be one of skill | category | global; got '{scope}'",
+        }
+    match: dict = {}
+    if owner is not None:
+        match["owner"] = owner
+    if category is not None:
+        match["category"] = category
+    if scope is not None:
+        match["scope"] = scope
+    docs = list(db.preferences.find(match))
+    return {
+        "source": "preferences",
+        "filter": {k: v for k, v in {"owner": owner, "category": category, "scope": scope}.items() if v},
         "count": len(docs),
         "preferences": docs,
     }

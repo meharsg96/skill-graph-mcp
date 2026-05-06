@@ -38,6 +38,7 @@ ROUTING_TOOLS = {
     "search_skills",
     "impact_analysis",
     "list_skills",
+    "list_preferences",
     "traverse_dependencies",
 }
 
