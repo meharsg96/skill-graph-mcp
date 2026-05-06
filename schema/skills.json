@@ -462,6 +462,38 @@
       "skill_path": "skills/react-test-writer/SKILL.md"
     },
     {
+      "_id": "skill:requirements-to-component",
+      "name": "Requirements to Component",
+      "description": "Convert free-text product requirements into a typed UI component specification (ui_spec). Use this skill when the user describes what they want in prose ('build me a login form with email, password, and a forgot-password link') and the next step is a structured component spec downstream skills can consume. Bridges unstructured user intent into the typed graph; pairs with ui-builder / leafygreen-ui for rendering. text_requirements is a source type — externally supplied user input, not produced by another skill.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "text_requirements",
+        "schema": "schema:text-requirements:v1"
+      },
+      "output": {
+        "type": "ui_spec",
+        "schema": "schema:ui-spec:v1"
+      },
+      "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": [],
+      "domain_fields": {
+        "extraction_targets": [
+          "components",
+          "fields",
+          "actions",
+          "layout",
+          "interactions",
+          "accessibility"
+        ],
+        "added_in": "v2.6.0",
+        "added_to_close": "R4 finding F2/F3 — free-text requirements had no entry into the typed graph; agent named the missing skill unprompted, citing the v2.2.0 react-test-writer precedent",
+        "design_note": "Source-type input (text_requirements) by design. A requirements_capture upstream skill would only re-implement what the LLM does naturally with prose; a skill should exist because it carries domain knowledge, not because the architecture demands a typed input."
+      },
+      "skill_path": "skills/requirements-to-component/SKILL.md"
+    },
+    {
       "_id": "skill:harness",
       "name": "Skill Graph Harness",
       "description": "Self-documenting meta-skill: how to operate the skill-graph MCP server itself. Use get_skill_instructions(skill:harness) to learn about SESSION_ID conventions, TTL behavior, analyze.py recipes, mongodump archival, scope tradeoffs, and common pitfalls. Always reachable; queryable through the same tools as any other skill.",

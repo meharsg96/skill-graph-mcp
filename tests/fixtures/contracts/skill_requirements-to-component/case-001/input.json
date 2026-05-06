@@ -1,0 +1,4 @@
+{
+  "text": "Build me a login form with email, password, and a forgot-password link. The submit button should say 'Sign in'. If credentials fail, show an inline error above the form. Email field gets focus on load.",
+  "context": "B2B SaaS product, brand is neutral / professional, WCAG AA required."
+}
