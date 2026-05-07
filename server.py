@@ -18,12 +18,16 @@ consulted first; the skill's own `domain_fields` is the fallback.
 
 Usage:
     pip install -r requirements.txt
-    python server.py
+    python server.py                        # stdio  — for Claude Code / MCP hosts
+    MCP_TRANSPORT=streamable-http python server.py  # HTTP   — for Claude web remote connector
 
 Environment:
     MONGODB_URI    Mongo connection string (default: mongodb://localhost:27017)
     SESSION_ID     Tag attached to every tool-call log entry
                    (auto fallback: session:auto-<pid>-<epoch>)
+    MCP_TRANSPORT  Transport mode: "stdio" (default) or "streamable-http"
+    MCP_HOST       Bind host for HTTP mode (default: 127.0.0.1)
+    MCP_PORT       Bind port for HTTP mode (default: 8000)
 """
 
 import json
@@ -874,7 +878,7 @@ def impact_analysis(skill_id: str, max_depth: int = 10) -> dict:
     }
 
 
-# Calibrated against 3 labeled leafygreen-ui artifacts (voyage-code-3).
+# Calibrated against 3 labeled leafygreen-ui artifacts (voyage-4).
 # Expand to 10-20 artifacts before treating these as production thresholds.
 _LAYER2_LOW_THRESHOLD = 0.70
 _LAYER2_HIGH_THRESHOLD = 0.725
@@ -916,7 +920,8 @@ def check_constraints(skill_id: str, fact_summary: str) -> dict:
 
     try:
         vc = voyageai.Client(api_key=voyage_key)
-        embedding_result = vc.embed([fact_summary], model="voyage-code-3", input_type="query")
+        embedding_result = vc.embed([fact_summary], model="voyage-4", input_type="query",
+                                     output_dimension=256, output_dtype="int8")
         query_vector = embedding_result.embeddings[0]
     except Exception as e:
         return {"error": f"Voyage AI embedding failed: {e}"}
@@ -993,4 +998,10 @@ def check_constraints(skill_id: str, fact_summary: str) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "streamable-http":
+        host = os.environ.get("MCP_HOST", "127.0.0.1")
+        port = int(os.environ.get("MCP_PORT", "8000"))
+        mcp.run(transport="streamable-http", host=host, port=port)
+    else:
+        mcp.run()
