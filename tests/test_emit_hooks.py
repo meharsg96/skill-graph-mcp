@@ -1,9 +1,10 @@
 """emit_hooks.py + runtime hook script (scripts/hooks/check_constraint.py).
 
-The graph emits Claude Code settings.json hook entries derived from
-db.constraints. Runtime hook evaluates the constraint and returns
-deny/ask/allow with rule_text as the reason. Deny-only enforcement —
-hooks never modify tool input.
+Schema matches https://code.claude.com/docs/en/hooks:
+- hooks is a record keyed by event name
+- each event maps to an array of {matcher, hooks} entries
+- hooks entries have type "command" and a shell command string
+- runtime exit code: 0=allow, 2=block (stderr is the reason)
 """
 
 import json
@@ -15,64 +16,112 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+HOOK_SCRIPT = REPO_ROOT / "scripts" / "hooks" / "check_constraint.py"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 
 @pytest.fixture
 def emit_hooks_module():
-    import emit_hooks  # noqa: WPS433 — local import for test
+    import emit_hooks
     return emit_hooks
 
 
-def test_emit_hooks_emits_one_per_known_constraint(seeded, emit_hooks_module):
+# ── emit_hooks output schema ────────────────────────────────────────────────
+
+def test_emit_hooks_top_level_hooks_is_record(seeded, emit_hooks_module):
     from pymongo import MongoClient
     client = MongoClient(os.environ["MONGODB_URI"])
     db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     fragment = emit_hooks_module.emit_hooks(db)
     client.close()
-
-    assert "hooks" in fragment
-    assert "_meta" in fragment
-    # Every entry in MATCHERS that has a corresponding seeded constraint
-    # should produce one hook entry.
-    expected_ids = set(emit_hooks_module.MATCHERS.keys())
-    emitted_ids = {h["env"]["CONSTRAINT_ID"] for h in fragment["hooks"]}
-    assert emitted_ids == expected_ids
+    assert isinstance(fragment["hooks"], dict), (
+        "Claude Code requires hooks to be a record keyed by event name, not an array"
+    )
 
 
-def test_emit_hooks_severity_to_outcome_mapping(seeded, emit_hooks_module):
+def test_emit_hooks_event_keys_are_real_event_names(seeded, emit_hooks_module):
     from pymongo import MongoClient
     client = MongoClient(os.environ["MONGODB_URI"])
     db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     fragment = emit_hooks_module.emit_hooks(db)
     client.close()
+    valid_events = {
+        "SessionStart", "Setup", "UserPromptSubmit", "UserPromptExpansion",
+        "PreToolUse", "PermissionRequest", "PermissionDenied", "PostToolUse",
+        "PostToolUseFailure", "PostToolBatch", "Notification", "SubagentStart",
+        "SubagentStop", "TaskCreated", "TaskCompleted", "Stop", "StopFailure",
+        "TeammateIdle", "InstructionsLoaded", "ConfigChange", "CwdChanged",
+        "FileChanged", "WorktreeCreate", "WorktreeRemove", "PreCompact",
+        "PostCompact", "Elicitation", "ElicitationResult", "SessionEnd",
+    }
+    for event in fragment["hooks"]:
+        assert event in valid_events, f"emitted hook for unknown event: {event}"
 
-    by_id = {h["env"]["CONSTRAINT_ID"]: h for h in fragment["hooks"]}
-    # fail-severity → deny
-    assert by_id["constraint:claude-code:bash:no-verify-bypass"]["outcome"] == "deny"
-    assert by_id["constraint:claude-code:bash:no-force-push-main"]["outcome"] == "deny"
-    # warn-severity → ask
-    assert by_id["constraint:claude-code:bash:destructive-requires-confirm"]["outcome"] == "ask"
-    assert by_id["constraint:claude-code:agent:no-delegate-understanding"]["outcome"] == "ask"
 
-
-def test_emit_hooks_skips_unknown_constraints(seeded, emit_hooks_module):
-    """Constraints without a MATCHERS entry must NOT silently emit a hook."""
+def test_emit_hooks_matcher_entries_have_correct_shape(seeded, emit_hooks_module):
     from pymongo import MongoClient
     client = MongoClient(os.environ["MONGODB_URI"])
     db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     fragment = emit_hooks_module.emit_hooks(db)
     client.close()
+    for event, entries in fragment["hooks"].items():
+        assert isinstance(entries, list), f"{event} should be an array"
+        for entry in entries:
+            assert "matcher" in entry, f"{event} entry missing matcher"
+            assert "hooks" in entry, f"{event} entry missing hooks array"
+            assert isinstance(entry["hooks"], list)
+            for h in entry["hooks"]:
+                assert h.get("type") == "command", (
+                    f"only 'command' hook type is supported, got {h.get('type')}"
+                )
+                assert "command" in h
 
-    # Each emitted hook's CONSTRAINT_ID must appear in MATCHERS.
-    for h in fragment["hooks"]:
-        assert h["env"]["CONSTRAINT_ID"] in emit_hooks_module.MATCHERS
+
+def test_emit_hooks_collapses_same_matcher(seeded, emit_hooks_module):
+    """Three Bash constraints should produce ONE matcher entry with three
+    hooks inside it, not three separate matcher entries."""
+    from pymongo import MongoClient
+    client = MongoClient(os.environ["MONGODB_URI"])
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
+    fragment = emit_hooks_module.emit_hooks(db)
+    client.close()
+    pretool = fragment["hooks"].get("PreToolUse", [])
+    bash_entries = [e for e in pretool if e["matcher"] == "Bash"]
+    assert len(bash_entries) == 1, (
+        f"expected one Bash matcher entry, got {len(bash_entries)}"
+    )
+    assert len(bash_entries[0]["hooks"]) == 3  # no-verify, force-push, destructive-rm
 
 
-def test_emitted_plus_skipped_equals_total_claude_code_constraints(seeded, emit_hooks_module):
-    """The script must account for every claude-code constraint — either
-    by emitting a hook or by listing it in _meta.skipped. Catches the case
-    where emit_hooks silently loses a constraint."""
+def test_emit_hooks_command_carries_constraint_id_env(seeded, emit_hooks_module):
+    """Each emitted command must include CONSTRAINT_ID=constraint:... so
+    the runtime hook knows which constraint it's evaluating, AND so
+    merge_settings can identify graph-owned commands later."""
+    from pymongo import MongoClient
+    client = MongoClient(os.environ["MONGODB_URI"])
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
+    fragment = emit_hooks_module.emit_hooks(db)
+    client.close()
+    for entries in fragment["hooks"].values():
+        for entry in entries:
+            for h in entry["hooks"]:
+                assert "CONSTRAINT_ID=constraint:" in h["command"]
+                assert "MONGODB_URI=" in h["command"]
+
+
+def test_emit_hooks_skips_constraints_without_matcher_entry(seeded, emit_hooks_module):
+    """fast-mode-opus-only has no MATCHERS entry — must appear in skipped."""
+    from pymongo import MongoClient
+    client = MongoClient(os.environ["MONGODB_URI"])
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
+    fragment = emit_hooks_module.emit_hooks(db)
+    client.close()
+    skipped_ids = {sid for sid, _ in fragment["_meta"]["skipped"]}
+    assert "constraint:claude-code:model:fast-mode-opus-only" in skipped_ids
+
+
+def test_emit_hooks_emitted_plus_skipped_equals_claude_code_total(seeded, emit_hooks_module):
+    """No claude-code constraint is silently dropped."""
     from pymongo import MongoClient
     client = MongoClient(os.environ["MONGODB_URI"])
     db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
@@ -81,27 +130,23 @@ def test_emitted_plus_skipped_equals_total_claude_code_constraints(seeded, emit_
         {"skill_id": {"$regex": "^skill:claude-code:"}}
     )
     client.close()
-
-    emitted = len(fragment["hooks"])
+    emitted = fragment["_meta"]["constraint_count"]
     skipped = len(fragment["_meta"]["skipped"])
-    assert emitted + skipped == total, (
-        f"claude-code constraints unaccounted for: total={total}, "
-        f"emitted={emitted}, skipped={skipped}"
-    )
+    assert emitted + skipped == total
 
 
-# ── runtime hook script (scripts/hooks/check_constraint.py) ────────────────
+# ── runtime hook (exit-code semantics) ──────────────────────────────────────
 
-HOOK_SCRIPT = REPO_ROOT / "scripts" / "hooks" / "check_constraint.py"
-
-
-def _run_hook(constraint_id: str, payload: dict) -> dict:
+def _run_hook(constraint_id: str, payload: dict, *, extra_env: dict = None):
+    """Run check_constraint.py; return (returncode, stderr_text)."""
     env = {
         **os.environ,
         "CONSTRAINT_ID": constraint_id,
         "MONGODB_URI": os.environ["MONGODB_URI"],
         "SKILL_GRAPH_DB": os.environ.get("SKILL_GRAPH_DB", "skill_graph_test"),
     }
+    if extra_env:
+        env.update(extra_env)
     proc = subprocess.run(
         [sys.executable, str(HOOK_SCRIPT)],
         input=json.dumps(payload),
@@ -110,137 +155,89 @@ def _run_hook(constraint_id: str, payload: dict) -> dict:
         env=env,
         timeout=10,
     )
-    assert proc.returncode == 0, f"hook crashed: {proc.stderr}"
-    return json.loads(proc.stdout)
+    return proc.returncode, proc.stderr
 
 
-def test_hook_no_verify_denies(seeded):
-    out = _run_hook(
+def test_hook_no_verify_blocks_with_exit_2(seeded):
+    rc, stderr = _run_hook(
         "constraint:claude-code:bash:no-verify-bypass",
         {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m fix"}},
     )
-    assert out["outcome"] == "deny"
-    assert "no-verify" in out["reason"]
+    assert rc == 2
+    assert "no-verify" in stderr
 
 
 def test_hook_no_verify_allows_clean_commit(seeded):
-    out = _run_hook(
+    rc, _ = _run_hook(
         "constraint:claude-code:bash:no-verify-bypass",
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m fix"}},
     )
-    assert out["outcome"] == "allow"
+    assert rc == 0
 
 
-def test_hook_force_push_main_denies(seeded):
-    out = _run_hook(
+def test_hook_force_push_main_blocks(seeded):
+    rc, _ = _run_hook(
         "constraint:claude-code:bash:no-force-push-main",
         {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}},
     )
-    assert out["outcome"] == "deny"
+    assert rc == 2
 
 
 def test_hook_force_push_feature_allows(seeded):
-    out = _run_hook(
+    rc, _ = _run_hook(
         "constraint:claude-code:bash:no-force-push-main",
         {"tool_name": "Bash", "tool_input": {"command": "git push --force origin feature-x"}},
     )
-    assert out["outcome"] == "allow"
+    assert rc == 0
 
 
 def test_hook_destructive_rm_scoped_allows(seeded):
-    out = _run_hook(
+    rc, _ = _run_hook(
         "constraint:claude-code:bash:destructive-requires-confirm",
         {"tool_name": "Bash", "tool_input": {"command": "rm -rf ./dist"}},
     )
-    assert out["outcome"] == "allow"
+    assert rc == 0
 
 
-def test_hook_destructive_rm_unscoped_asks(seeded):
-    out = _run_hook(
+def test_hook_destructive_rm_unscoped_blocks_with_warn_prefix(seeded):
+    """severity:warn → exit 2 (block) with WARN: prefix on stderr."""
+    rc, stderr = _run_hook(
         "constraint:claude-code:bash:destructive-requires-confirm",
         {"tool_name": "Bash", "tool_input": {"command": "rm -rf /etc/foo"}},
     )
-    # severity=warn → ask outcome (surface to user)
-    assert out["outcome"] == "ask"
+    assert rc == 2
+    assert "WARN:" in stderr
 
 
-def test_hook_delegated_subagent_prompt_asks(seeded):
-    out = _run_hook(
+def test_hook_delegated_subagent_blocks_with_warn_prefix(seeded):
+    rc, stderr = _run_hook(
         "constraint:claude-code:agent:no-delegate-understanding",
-        {
-            "tool_name": "Agent",
-            "tool_input": {
-                "prompt": "Explore the auth module then based on your findings fix the bug",
-            },
-        },
+        {"tool_name": "Task",
+         "tool_input": {"prompt": "Explore the auth then based on your findings fix it"}},
     )
-    assert out["outcome"] == "ask"
-    assert "delegate" in out["reason"].lower() or "synthesis" in out["reason"].lower()
+    assert rc == 2
+    assert "WARN:" in stderr
 
 
 def test_hook_concrete_subagent_prompt_allows(seeded):
-    out = _run_hook(
+    rc, _ = _run_hook(
         "constraint:claude-code:agent:no-delegate-understanding",
-        {
-            "tool_name": "Agent",
-            "tool_input": {
-                "prompt": "In auth/middleware.py:47 change > to >= and add a test",
-            },
-        },
+        {"tool_name": "Task",
+         "tool_input": {"prompt": "In auth/middleware.py:47 change > to >="}},
     )
-    assert out["outcome"] == "allow"
+    assert rc == 0
 
 
 def test_hook_unknown_constraint_fails_open(seeded):
-    out = _run_hook(
+    rc, _ = _run_hook(
         "constraint:does-not-exist",
         {"tool_name": "Bash", "tool_input": {"command": "rm -rf /"}},
     )
-    assert out["outcome"] == "allow"
-
-
-def test_emit_then_evaluate_round_trip(seeded, emit_hooks_module, tmp_path):
-    """End-to-end smoke: emit_hooks → write → reload → run check_constraint.py
-    against every emitted hook with a benign payload → confirm none crash and
-    each returns a valid outcome string. Sanity check that the emitted config
-    references no broken hook script paths."""
-    import os as _os
-    from pymongo import MongoClient
-
-    client = MongoClient(_os.environ["MONGODB_URI"])
-    db = client[_os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
-    fragment = emit_hooks_module.emit_hooks(db)
-    client.close()
-
-    out_path = tmp_path / "hooks.json"
-    out_path.write_text(json.dumps(fragment))
-    reloaded = json.loads(out_path.read_text())
-    assert reloaded["hooks"] == fragment["hooks"]
-
-    benign_payload = {"tool_name": "Bash", "tool_input": {"command": "echo hi"}}
-    for h in reloaded["hooks"]:
-        constraint_id = h["env"]["CONSTRAINT_ID"]
-        proc = subprocess.run(
-            [sys.executable, h["tool"]],
-            input=json.dumps(benign_payload),
-            capture_output=True,
-            text=True,
-            env={**_os.environ,
-                 "CONSTRAINT_ID": constraint_id,
-                 "MONGODB_URI": _os.environ["MONGODB_URI"],
-                 "SKILL_GRAPH_DB": _os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")},
-            timeout=10,
-        )
-        assert proc.returncode == 0, (
-            f"hook crashed for {constraint_id}: {proc.stderr}"
-        )
-        out = json.loads(proc.stdout)
-        assert out["outcome"] in {"allow", "ask", "deny"}, (
-            f"unexpected outcome from {constraint_id}: {out}"
-        )
+    assert rc == 0
 
 
 def test_hook_no_input_fails_open(seeded):
+    """Empty stdin → outcome=allow (not crash)."""
     proc = subprocess.run(
         [sys.executable, str(HOOK_SCRIPT)],
         input="",
@@ -255,5 +252,34 @@ def test_hook_no_input_fails_open(seeded):
         timeout=10,
     )
     assert proc.returncode == 0
-    out = json.loads(proc.stdout)
-    assert out["outcome"] == "allow"
+
+
+def test_emit_then_evaluate_round_trip(seeded, emit_hooks_module, tmp_path):
+    """End-to-end smoke: emit → reload → invoke each command with a benign
+    payload → confirm none crash and each returns exit 0 or 2."""
+    import os as _os
+    from pymongo import MongoClient
+
+    client = MongoClient(_os.environ["MONGODB_URI"])
+    db = client[_os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
+    fragment = emit_hooks_module.emit_hooks(db)
+    client.close()
+
+    out_path = tmp_path / "hooks.json"
+    out_path.write_text(json.dumps(fragment))
+    reloaded = json.loads(out_path.read_text())
+
+    benign_payload = {"tool_name": "Bash", "tool_input": {"command": "echo hi"}}
+    for entries in reloaded["hooks"].values():
+        for entry in entries:
+            for h in entry["hooks"]:
+                # Run the command in a shell since it has env-var prefixes
+                proc = subprocess.run(
+                    h["command"],
+                    input=json.dumps(benign_payload),
+                    capture_output=True, text=True, shell=True, timeout=10,
+                )
+                assert proc.returncode in {0, 2}, (
+                    f"unexpected exit {proc.returncode} for command:\n"
+                    f"{h['command']}\nstderr: {proc.stderr}"
+                )

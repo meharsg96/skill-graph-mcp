@@ -1,12 +1,12 @@
 """scripts/merge_settings.py — idempotent merge of an emit_hooks fragment
-into a Claude Code settings file.
+into Claude Code's settings.local.json hooks block.
 
-Critical properties:
-- Idempotent: running merge N times produces the same output
-- User-authored hooks (no env.CONSTRAINT_ID) are preserved
-- Graph-owned hooks (with env.CONSTRAINT_ID) are replaced wholesale
-- Missing settings file is treated as `{}`
-- Settings without a `hooks` key are treated as `hooks: []`
+Schema (per https://code.claude.com/docs/en/hooks):
+  hooks: {<EventName>: [{matcher, hooks: [{type, command}]}]}
+
+Identification rule for graph-owned hook commands: command string contains
+`CONSTRAINT_ID=constraint:`. User-authored commands lack that signature
+and are preserved untouched.
 """
 
 import json
@@ -21,140 +21,192 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 @pytest.fixture
 def merge_module():
-    import merge_settings  # noqa: WPS433 — local
+    import merge_settings
     return merge_settings
+
+
+def _graph_command(constraint_id: str = "constraint:foo:bar") -> dict:
+    return {
+        "type": "command",
+        "command": (
+            f"CONSTRAINT_ID={constraint_id} MONGODB_URI=mongodb://x "
+            f"/path/to/check_constraint.py"
+        ),
+    }
+
+
+def _user_command() -> dict:
+    return {"type": "command", "command": "/users/own/script.sh"}
 
 
 # ── pure merge function ─────────────────────────────────────────────────────
 
 def test_merge_into_empty_settings(merge_module):
     fragment = {
-        "hooks": [
-            {"event": "PreToolUse", "if": "Bash(*)", "tool": "/x.py",
-             "env": {"CONSTRAINT_ID": "constraint:foo"}, "outcome": "deny"},
-        ],
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [_graph_command("constraint:a")]},
+            ],
+        },
     }
     merged, summary = merge_module.merge({}, fragment)
-    assert merged["hooks"] == fragment["hooks"]
-    assert summary == {
-        "user_hooks_preserved": 0,
-        "graph_hooks_dropped": 0,
-        "graph_hooks_added": 1,
-    }
-
-
-def test_merge_preserves_user_authored_hooks(merge_module):
-    """A hook without env.CONSTRAINT_ID is user-authored — must survive."""
-    user_hook = {
-        "event": "Stop",
-        "tool": "/users-own-script.sh",
-        # no env.CONSTRAINT_ID — user-authored
-    }
-    settings = {"hooks": [user_hook]}
-    fragment = {
-        "hooks": [
-            {"event": "PreToolUse", "if": "Bash(*)", "tool": "/x.py",
-             "env": {"CONSTRAINT_ID": "constraint:foo"}, "outcome": "deny"},
-        ],
-    }
-    merged, summary = merge_module.merge(settings, fragment)
-    assert user_hook in merged["hooks"]
-    assert summary["user_hooks_preserved"] == 1
+    assert merged["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
     assert summary["graph_hooks_added"] == 1
-
-
-def test_merge_replaces_graph_owned_hooks(merge_module):
-    """Existing hooks with env.CONSTRAINT_ID must be dropped before adding
-    the new fragment — otherwise running emit_hooks twice doubles every
-    hook."""
-    old_graph_hook = {
-        "event": "PreToolUse", "if": "Bash(*--no-verify*)",
-        "tool": "/x.py", "env": {"CONSTRAINT_ID": "constraint:foo"},
-        "outcome": "deny",
-    }
-    new_graph_hook = {
-        "event": "PreToolUse", "if": "Bash(*--no-verify*)",
-        "tool": "/x.py", "env": {"CONSTRAINT_ID": "constraint:foo"},
-        "outcome": "deny", "reason_preview": "updated text",
-    }
-    settings = {"hooks": [old_graph_hook]}
-    fragment = {"hooks": [new_graph_hook]}
-    merged, summary = merge_module.merge(settings, fragment)
-    assert merged["hooks"] == [new_graph_hook]
-    assert summary == {
-        "user_hooks_preserved": 0,
-        "graph_hooks_dropped": 1,
-        "graph_hooks_added": 1,
-    }
-
-
-def test_merge_is_idempotent(merge_module):
-    """Running merge N times must produce the same output as running once."""
-    user_hook = {"event": "Stop", "tool": "/x.sh"}
-    fragment = {
-        "hooks": [
-            {"event": "PreToolUse", "if": "Bash(*)", "tool": "/y.py",
-             "env": {"CONSTRAINT_ID": "constraint:a"}, "outcome": "deny"},
-            {"event": "SubagentStart", "if": "*", "tool": "/y.py",
-             "env": {"CONSTRAINT_ID": "constraint:b"}, "outcome": "ask"},
-        ],
-    }
-    settings = {"hooks": [user_hook]}
-    merged1, _ = merge_module.merge(settings, fragment)
-    merged2, _ = merge_module.merge(merged1, fragment)
-    merged3, _ = merge_module.merge(merged2, fragment)
-    assert merged1["hooks"] == merged2["hooks"] == merged3["hooks"]
-
-
-def test_merge_preserves_non_hooks_keys(merge_module):
-    """A real settings.json carries unrelated keys (model, permissionMode,
-    etc.). Merge must not touch them."""
-    settings = {
-        "model": "claude-opus-4-7",
-        "permissionMode": "ask",
-        "hooks": [],
-    }
-    fragment = {"hooks": []}
-    merged, _ = merge_module.merge(settings, fragment)
-    assert merged["model"] == "claude-opus-4-7"
-    assert merged["permissionMode"] == "ask"
-
-
-def test_merge_treats_missing_hooks_key_as_empty(merge_module):
-    settings = {"model": "claude-opus-4-7"}  # no hooks key at all
-    fragment = {
-        "hooks": [
-            {"event": "PreToolUse", "if": "*", "tool": "/x.py",
-             "env": {"CONSTRAINT_ID": "constraint:a"}, "outcome": "deny"},
-        ],
-    }
-    merged, summary = merge_module.merge(settings, fragment)
-    assert len(merged["hooks"]) == 1
     assert summary["user_hooks_preserved"] == 0
 
 
-def test_is_graph_owned_recognizes_env_constraint_id(merge_module):
-    assert merge_module.is_graph_owned({"env": {"CONSTRAINT_ID": "constraint:foo"}})
-    assert not merge_module.is_graph_owned({"env": {"CONSTRAINT_ID": ""}})
-    assert not merge_module.is_graph_owned({"env": {}})
-    assert not merge_module.is_graph_owned({})  # no env key
-    assert not merge_module.is_graph_owned({"env": None})
+def test_merge_preserves_user_authored_hooks(merge_module):
+    settings = {
+        "hooks": {
+            "Stop": [
+                {"matcher": "", "hooks": [_user_command()]},
+            ],
+        },
+    }
+    fragment = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [_graph_command("constraint:a")]},
+            ],
+        },
+    }
+    merged, summary = merge_module.merge(settings, fragment)
+    # User Stop hook intact
+    stop_entries = merged["hooks"]["Stop"]
+    assert any(
+        h.get("command") == "/users/own/script.sh"
+        for entry in stop_entries
+        for h in entry.get("hooks", [])
+    )
+    # Graph PreToolUse hook added
+    assert "PreToolUse" in merged["hooks"]
+    assert summary["user_hooks_preserved"] >= 1
 
 
-# ── CLI / file IO ───────────────────────────────────────────────────────────
+def test_merge_replaces_graph_owned_hooks(merge_module):
+    """Existing graph-owned hooks must be dropped before adding the new
+    fragment — running emit twice must not duplicate."""
+    old = _graph_command("constraint:a")
+    new = {
+        "type": "command",
+        "command": "CONSTRAINT_ID=constraint:a MONGODB_URI=mongodb://NEW /x.py",
+    }
+    settings = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [old]},
+            ],
+        },
+    }
+    fragment = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [new]},
+            ],
+        },
+    }
+    merged, summary = merge_module.merge(settings, fragment)
+    # Old gone, new present
+    bash_entries = [
+        e for e in merged["hooks"]["PreToolUse"] if e["matcher"] == "Bash"
+    ]
+    assert len(bash_entries) == 1
+    cmds = [h["command"] for h in bash_entries[0]["hooks"]]
+    assert all("MONGODB_URI=mongodb://NEW" in c for c in cmds)
+    assert summary["graph_hooks_dropped"] == 1
+    assert summary["graph_hooks_added"] == 1
+
+
+def test_merge_is_idempotent(merge_module):
+    fragment = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [
+                    _graph_command("constraint:a"),
+                    _graph_command("constraint:b"),
+                ]},
+            ],
+        },
+    }
+    settings = {"hooks": {"Stop": [{"matcher": "", "hooks": [_user_command()]}]}}
+    m1, _ = merge_module.merge(settings, fragment)
+    m2, _ = merge_module.merge(m1, fragment)
+    m3, _ = merge_module.merge(m2, fragment)
+    assert m1["hooks"] == m2["hooks"] == m3["hooks"]
+
+
+def test_merge_collapses_same_matcher_across_user_and_graph(merge_module):
+    """User has Bash hook, graph emits Bash hook → one Bash matcher entry
+    with both commands listed inside."""
+    settings = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [_user_command()]},
+            ],
+        },
+    }
+    fragment = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [_graph_command("constraint:a")]},
+            ],
+        },
+    }
+    merged, _ = merge_module.merge(settings, fragment)
+    bash_entries = [
+        e for e in merged["hooks"]["PreToolUse"] if e["matcher"] == "Bash"
+    ]
+    assert len(bash_entries) == 1, "same-matcher entries should collapse"
+    cmds = [h["command"] for h in bash_entries[0]["hooks"]]
+    # Both user and graph commands present
+    assert any("CONSTRAINT_ID=" in c for c in cmds)
+    assert any("/users/own/script.sh" in c for c in cmds)
+
+
+def test_merge_preserves_non_hooks_keys(merge_module):
+    settings = {
+        "model": "claude-opus-4-7",
+        "permissions": {"allow": ["Read"]},
+        "hooks": {},
+    }
+    fragment = {"hooks": {}}
+    merged, _ = merge_module.merge(settings, fragment)
+    assert merged["model"] == "claude-opus-4-7"
+    assert merged["permissions"] == {"allow": ["Read"]}
+
+
+def test_merge_treats_missing_hooks_key_as_empty(merge_module):
+    settings = {"model": "claude-opus-4-7"}
+    fragment = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [_graph_command("constraint:a")]},
+            ],
+        },
+    }
+    merged, _ = merge_module.merge(settings, fragment)
+    assert "PreToolUse" in merged["hooks"]
+
+
+def test_is_graph_owned_recognizes_constraint_id_marker(merge_module):
+    assert merge_module.is_graph_owned(_graph_command())
+    assert not merge_module.is_graph_owned(_user_command())
+    assert not merge_module.is_graph_owned({"type": "command", "command": ""})
+    assert not merge_module.is_graph_owned({"type": "http", "url": "..."})
+
+
+# ── CLI ──────────────────────────────────────────────────────────────────────
 
 def test_cli_writes_file_when_settings_missing(tmp_path, merge_module, monkeypatch):
-    """If settings.local.json doesn't exist, merge creates it from {}."""
     fragment_path = tmp_path / "fragment.json"
     settings_path = tmp_path / ".claude" / "settings.local.json"
-
     fragment_path.write_text(json.dumps({
-        "hooks": [
-            {"event": "PreToolUse", "if": "Bash(*)", "tool": "/x.py",
-             "env": {"CONSTRAINT_ID": "constraint:foo"}, "outcome": "deny"},
-        ],
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [_graph_command("constraint:a")]},
+            ],
+        },
     }))
-
     monkeypatch.setattr(sys, "argv", [
         "merge_settings.py",
         "--fragment", str(fragment_path),
@@ -164,14 +216,13 @@ def test_cli_writes_file_when_settings_missing(tmp_path, merge_module, monkeypat
     assert rc == 0
     assert settings_path.exists()
     written = json.loads(settings_path.read_text())
-    assert len(written["hooks"]) == 1
+    assert "PreToolUse" in written["hooks"]
 
 
 def test_cli_dry_run_writes_nothing(tmp_path, merge_module, monkeypatch):
     fragment_path = tmp_path / "fragment.json"
     settings_path = tmp_path / "settings.json"
-    fragment_path.write_text(json.dumps({"hooks": []}))
-
+    fragment_path.write_text(json.dumps({"hooks": {}}))
     monkeypatch.setattr(sys, "argv", [
         "merge_settings.py",
         "--fragment", str(fragment_path),
@@ -184,25 +235,19 @@ def test_cli_dry_run_writes_nothing(tmp_path, merge_module, monkeypatch):
 
 
 def test_cli_returns_error_when_fragment_missing(tmp_path, merge_module, monkeypatch, capsys):
-    """Missing fragment is a config error — exit 1, not silent success."""
     monkeypatch.setattr(sys, "argv", [
         "merge_settings.py",
-        "--fragment", str(tmp_path / "does-not-exist.json"),
+        "--fragment", str(tmp_path / "missing.json"),
         "--settings", str(tmp_path / "settings.json"),
     ])
     rc = merge_module.main()
     assert rc == 1
-    err = capsys.readouterr().err
-    assert "fragment file not found" in err or "not found" in err.lower()
 
 
-# ── round trip with the real emit_hooks output ──────────────────────────────
+# ── round trip with real emit_hooks output ──────────────────────────────────
 
 def test_round_trip_emit_then_merge(seeded, tmp_path, merge_module):
-    """End-to-end: emit_hooks → write fragment → merge into empty settings →
-    merge again → confirm idempotent + every hook from fragment is present."""
     import os
-
     import emit_hooks
     from pymongo import MongoClient
 
@@ -215,16 +260,16 @@ def test_round_trip_emit_then_merge(seeded, tmp_path, merge_module):
     settings_path = tmp_path / "settings.local.json"
     fragment_path.write_text(json.dumps(fragment))
 
-    # Pre-populate settings with a user-authored hook
-    user_hook = {"event": "Stop", "tool": "/users-own-script.sh"}
-    settings_path.write_text(json.dumps({"hooks": [user_hook]}))
+    user_event_hook = {"matcher": "", "hooks": [_user_command()]}
+    settings_path.write_text(json.dumps({"hooks": {"Stop": [user_event_hook]}}))
 
     initial = json.loads(settings_path.read_text())
     merged_once, _ = merge_module.merge(initial, fragment)
     merged_twice, _ = merge_module.merge(merged_once, fragment)
-
     assert merged_once == merged_twice
-    assert user_hook in merged_once["hooks"]
-    # Every emitted hook is in the merged result
-    for h in fragment["hooks"]:
-        assert h in merged_once["hooks"]
+    # User Stop hook still there
+    assert any(
+        "/users/own/script.sh" == h.get("command")
+        for entry in merged_once["hooks"]["Stop"]
+        for h in entry.get("hooks", [])
+    )

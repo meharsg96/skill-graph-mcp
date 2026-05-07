@@ -1,28 +1,30 @@
 """Idempotently merge a graph-emitted hooks fragment into a Claude Code
 settings file (settings.local.json by default).
 
-Identification rule for graph-owned hooks:
-  any hook entry whose env.CONSTRAINT_ID is set
-   ↳ owned by emit_hooks.py — replaceable
-  any hook entry without env.CONSTRAINT_ID
-   ↳ user-authored — preserved untouched
+Output schema (per https://code.claude.com/docs/en/hooks):
 
-The merge:
-  1. Read existing settings (or start with `{}` if file doesn't exist)
-  2. Drop every existing hook with env.CONSTRAINT_ID set
-  3. Append every hook from the fragment's "hooks" array
-  4. Write back, preserving formatting (indent=2, trailing newline)
+    "hooks": {
+      "<EventName>": [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "..."}]}
+      ]
+    }
+
+Identification rule for graph-owned commands: a hook command string that
+contains `CONSTRAINT_ID=constraint:` is graph-owned. User-authored
+commands lack that signature and are preserved untouched.
+
+Merge algorithm (per event):
+  1. For each event in the existing settings hooks record, walk its
+     matcher entries.
+  2. Within each entry, drop any `hooks[]` command that is graph-owned.
+  3. If the matcher entry's `hooks[]` becomes empty, drop the matcher
+     entry entirely (it was wholly graph-owned).
+  4. Add the fragment's matcher entries on top, merging by matcher
+     string (so user `Bash` and graph `Bash` entries collapse into one).
 
 Idempotency: running this script N times in a row produces the same
 output. The fragment is the source of truth for graph-owned hooks;
 user-added hooks survive every merge.
-
-Usage:
-    python scripts/merge_settings.py \\
-        --fragment .claude/hooks.generated.json \\
-        --settings .claude/settings.local.json
-
-    python scripts/merge_settings.py --dry-run    # show diff, write nothing
 """
 
 from __future__ import annotations
@@ -33,29 +35,84 @@ import sys
 from pathlib import Path
 
 
-def is_graph_owned(hook: dict) -> bool:
-    """A hook is graph-owned iff env.CONSTRAINT_ID is set on it."""
-    env = hook.get("env") or {}
-    return bool(env.get("CONSTRAINT_ID"))
+def is_graph_owned(command_entry: dict) -> bool:
+    """A hook command entry is graph-owned iff its `command` string carries
+    the CONSTRAINT_ID env-var marker."""
+    if command_entry.get("type") != "command":
+        return False
+    cmd = command_entry.get("command") or ""
+    return "CONSTRAINT_ID=constraint:" in cmd
+
+
+def _strip_graph_owned(matcher_entries: list) -> list:
+    """Remove graph-owned commands from each matcher entry. If a matcher
+    entry's hooks list becomes empty, drop it entirely."""
+    cleaned = []
+    for entry in matcher_entries:
+        sub_hooks = entry.get("hooks") or []
+        kept = [h for h in sub_hooks if not is_graph_owned(h)]
+        if kept:
+            new_entry = dict(entry)
+            new_entry["hooks"] = kept
+            cleaned.append(new_entry)
+    return cleaned
+
+
+def _merge_event_entries(existing: list, fragment: list) -> list:
+    """Merge two arrays of {matcher, hooks} entries. Same `matcher` string
+    collapses into one entry whose `hooks` list is the concatenation."""
+    by_matcher: dict[str, dict] = {}
+    out: list[dict] = []
+    for entry in existing + fragment:
+        m = entry.get("matcher", "")
+        if m not in by_matcher:
+            new_entry = {"matcher": m, "hooks": list(entry.get("hooks") or [])}
+            by_matcher[m] = new_entry
+            out.append(new_entry)
+        else:
+            by_matcher[m]["hooks"].extend(entry.get("hooks") or [])
+    return out
 
 
 def merge(settings: dict, fragment: dict) -> tuple[dict, dict]:
-    """Return (merged_settings, change_summary).
+    """Pure merge function — does not read or write disk."""
+    existing_hooks = settings.get("hooks") or {}
+    fragment_hooks = fragment.get("hooks") or {}
 
-    Pure function — does not read or write disk.
-    """
-    user_hooks = [h for h in settings.get("hooks", []) if not is_graph_owned(h)]
-    graph_hooks = list(fragment.get("hooks", []))
+    # Count what's about to be dropped (for the summary)
+    dropped = 0
+    for event_entries in existing_hooks.values():
+        for entry in event_entries:
+            for h in entry.get("hooks") or []:
+                if is_graph_owned(h):
+                    dropped += 1
+
+    user_kept = 0
+    merged_hooks: dict[str, list] = {}
+    all_events = set(existing_hooks.keys()) | set(fragment_hooks.keys())
+    for event in all_events:
+        existing_for_event = _strip_graph_owned(existing_hooks.get(event, []))
+        for entry in existing_for_event:
+            user_kept += len(entry.get("hooks") or [])
+        fragment_for_event = fragment_hooks.get(event, [])
+        merged_hooks[event] = _merge_event_entries(
+            existing_for_event, fragment_for_event,
+        )
+
+    added = sum(
+        len(h.get("hooks") or [])
+        for entries in fragment_hooks.values()
+        for h in entries
+    )
 
     merged = dict(settings)
-    merged["hooks"] = user_hooks + graph_hooks
+    merged["hooks"] = merged_hooks
 
     summary = {
-        "user_hooks_preserved": len(user_hooks),
-        "graph_hooks_dropped": sum(
-            1 for h in settings.get("hooks", []) if is_graph_owned(h)
-        ),
-        "graph_hooks_added": len(graph_hooks),
+        "user_hooks_preserved": user_kept,
+        "graph_hooks_dropped": dropped,
+        "graph_hooks_added": added,
+        "events": sorted(merged_hooks.keys()),
     }
     return merged, summary
 
@@ -63,13 +120,10 @@ def merge(settings: dict, fragment: dict) -> tuple[dict, dict]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--fragment", type=Path,
-                        default=Path(".claude/hooks.generated.json"),
-                        help="emit_hooks.py output file")
+                        default=Path(".claude/hooks.generated.json"))
     parser.add_argument("--settings", type=Path,
-                        default=Path(".claude/settings.local.json"),
-                        help="Claude Code settings file to merge into")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="print summary, write nothing")
+                        default=Path(".claude/settings.local.json"))
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     if not args.fragment.exists():
@@ -93,6 +147,7 @@ def main() -> int:
     print(f"  user-authored hooks preserved: {summary['user_hooks_preserved']}")
     print(f"  graph-owned hooks replaced:    {summary['graph_hooks_dropped']}")
     print(f"  graph-owned hooks now present: {summary['graph_hooks_added']}")
+    print(f"  events: {summary['events']}")
 
     if args.dry_run:
         print("\n--dry-run: no file written.")
