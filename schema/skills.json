@@ -584,6 +584,614 @@
       "replaced_by": "skill:schema-review"
     }
   ],
+  "claude_code_skills": [
+    {
+      "_id": "skill:claude-code:permission-mode",
+      "name": "Claude Code Permission Mode",
+      "description": "Controls which tool calls Claude Code approves automatically. Three modes: auto (all tools auto-approved), ask (default, read-only auto-approved), manual (every call requires confirm). Root of the tool dependency chain.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "permission_config",
+        "schema": "schema:permission-config:v1"
+      },
+      "output": {
+        "type": "permission_state",
+        "schema": "schema:permission-state:v1"
+      },
+      "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": [],
+      "domain_fields": {
+        "modes": ["auto", "ask", "manual"],
+        "default_mode": "ask",
+        "auto_approved_in_ask": ["Read", "Glob", "Grep"],
+        "always_requires_confirm": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "git commit --no-verify",
+          "git push --force-with-lease to main"
+        ]
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:model-selection",
+      "name": "Claude Code Model Selection",
+      "description": "Selects the Claude model and fast-mode setting for a session. Opus 4.7 supports /fast (Opus 4.6 base, faster output). Sonnet 4.6 is the default. Model choice gates agent spawning capability.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "task_requirements",
+        "schema": "schema:task-requirements:v1"
+      },
+      "output": {
+        "type": "model_config",
+        "schema": "schema:model-config:v1"
+      },
+      "dependencies": [],
+      "dependency_constraints": {},
+      "parameter_sources": [],
+      "domain_fields": {
+        "available_models": [
+          {"id": "claude-opus-4-7", "family": "Opus 4", "fast_mode": true},
+          {"id": "claude-sonnet-4-6", "family": "Sonnet 4", "fast_mode": false},
+          {"id": "claude-haiku-4-5-20251001", "family": "Haiku 4", "fast_mode": false}
+        ],
+        "default_model": "claude-sonnet-4-6",
+        "fast_mode_base": "claude-opus-4-6",
+        "fast_mode_toggle": "/fast"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:tool:bash",
+      "name": "Claude Code Bash Tool",
+      "description": "Executes shell commands. Side-effectful — creates files, runs builds, makes git commits. Requires permission approval. Working directory persists between calls; shell state does not. Prefer dedicated tools (Read, Edit, Write) over Bash for file operations.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "shell_command",
+        "schema": "schema:shell-command:v1"
+      },
+      "output": {
+        "type": "shell_result",
+        "schema": "schema:shell-result:v1"
+      },
+      "dependencies": ["skill:claude-code:permission-mode"],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "timeout_default_ms": 120000,
+        "timeout_max_ms": 600000,
+        "supports_background": true,
+        "dangerous_patterns": [
+          "rm -rf",
+          "--no-verify",
+          "--force",
+          "DROP TABLE",
+          "; rm",
+          "| sh",
+          "eval"
+        ]
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:tool:read",
+      "name": "Claude Code Read Tool",
+      "description": "Reads files from the filesystem. Read-only, no side effects. Supports text files, images, PDFs (with page range), and Jupyter notebooks. Returns content with line numbers (cat -n format). Required before Edit can be called on the same file.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "file_path",
+        "schema": "schema:file-path:v1"
+      },
+      "output": {
+        "type": "file_content",
+        "schema": "schema:file-content:v1"
+      },
+      "dependencies": ["skill:claude-code:permission-mode"],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "side_effectful": false,
+        "auto_approved_in_ask_mode": true,
+        "supported_formats": ["text", "image", "pdf", "ipynb"],
+        "default_limit_lines": 2000
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:tool:edit",
+      "name": "Claude Code Edit Tool",
+      "description": "Makes exact string replacements in files. Requires a prior Read of the same file in the conversation — will error otherwise. Sends only the diff (more efficient than Write for partial changes). Fails if old_string is not unique.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "edit_request",
+        "schema": "schema:edit-request:v1"
+      },
+      "output": {
+        "type": "edit_result",
+        "schema": "schema:edit-result:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:permission-mode",
+        "skill:claude-code:tool:read"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"},
+        "skill:claude-code:tool:read": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "requires_prior_read": true,
+        "replace_all_supported": true,
+        "uniqueness_required": true
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:tool:write",
+      "name": "Claude Code Write Tool",
+      "description": "Writes entire file content to a path. Overwrites if file exists (requires prior Read). Use for new files or complete rewrites; prefer Edit for partial changes. Never creates documentation files unless explicitly requested.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "write_request",
+        "schema": "schema:write-request:v1"
+      },
+      "output": {
+        "type": "write_result",
+        "schema": "schema:write-result:v1"
+      },
+      "dependencies": ["skill:claude-code:permission-mode"],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "requires_prior_read_if_exists": true,
+        "full_overwrite": true
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:tool:agent",
+      "name": "Claude Code Agent Tool",
+      "description": "Spawns a subagent for complex multi-step tasks or codebase exploration. Subagents have isolated context — no memory of the parent conversation. Requires model selection (model choice affects subagent capability). Background mode supported for independent parallel work.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "agent_task",
+        "schema": "schema:agent-task:v1"
+      },
+      "output": {
+        "type": "agent_result",
+        "schema": "schema:agent-result:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:permission-mode",
+        "skill:claude-code:model-selection"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"},
+        "skill:claude-code:model-selection": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "available_subtypes": [
+          "general-purpose",
+          "Explore",
+          "Plan",
+          "code-review-judge",
+          "agentic-systems-architect",
+          "frontend-design-elevate",
+          "claude-code-guide",
+          "statusline-setup"
+        ],
+        "supports_background": true,
+        "supports_worktree_isolation": true,
+        "context_isolation": "full"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:tool:mcp",
+      "name": "Claude Code MCP Tool",
+      "description": "Exposes tools from registered MCP servers. Tool schemas are loaded on demand via ToolSearch. MCP servers are registered in settings.json or via 'claude mcp add'. Server availability is checked at session start — unavailable servers show no tools.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "mcp_request",
+        "schema": "schema:mcp-request:v1"
+      },
+      "output": {
+        "type": "mcp_result",
+        "schema": "schema:mcp-result:v1"
+      },
+      "dependencies": ["skill:claude-code:permission-mode"],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "registration_scopes": ["project", "user"],
+        "tool_schema_loading": "deferred",
+        "stdio_transport": true
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:tool:web",
+      "name": "Claude Code Web Tools",
+      "description": "WebSearch (keyword/semantic search returning URLs + snippets) and WebFetch (retrieves full page content from a URL). Read-only, no side effects. Do not generate or guess URLs — only use URLs provided by user or from search results.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "web_query",
+        "schema": "schema:web-query:v1"
+      },
+      "output": {
+        "type": "web_content",
+        "schema": "schema:web-content:v1"
+      },
+      "dependencies": ["skill:claude-code:permission-mode"],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "side_effectful": false,
+        "tools": ["WebSearch", "WebFetch"],
+        "url_policy": "never_generate_or_guess"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:slash-commands",
+      "name": "Claude Code Slash Commands",
+      "description": "REPL slash commands that configure session behavior. /fast toggles fast mode (Opus 4.7 only). /compact summarizes and compresses conversation. /permissions shows permission state. /review triggers code review. User-invocable skills registered via MCP show here too.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "slash_command",
+        "schema": "schema:slash-command:v1"
+      },
+      "output": {
+        "type": "command_result",
+        "schema": "schema:command-result:v1"
+      },
+      "dependencies": ["skill:claude-code:model-selection"],
+      "dependency_constraints": {
+        "skill:claude-code:model-selection": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "commands": {
+          "/help": {"requires": null},
+          "/clear": {"requires": null},
+          "/fast": {"requires": "Opus 4.7 session"},
+          "/compact": {"requires": null},
+          "/permissions": {"requires": null},
+          "/review": {"requires": "git repo"},
+          "/ultrareview": {"requires": "git repo + billed"}
+        }
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:hooks",
+      "name": "Claude Code Hooks",
+      "description": "Shell commands that execute in response to tool-call lifecycle events. 28 events across 6 lifecycle groups (Session, Per-Turn, Tool Execution, Agents, Filesystem, Context). PreToolUse is the only event that can MODIFY tool input (via updatedInput); others can only allow/block.",
+      "version": "1.1.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "hook_config",
+        "schema": "schema:hook-config:v1"
+      },
+      "output": {
+        "type": "hook_state",
+        "schema": "schema:hook-state:v1"
+      },
+      "dependencies": ["skill:claude-code:permission-mode"],
+      "dependency_constraints": {
+        "skill:claude-code:permission-mode": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "event_groups": {
+          "session": ["SessionStart", "Setup", "SessionEnd"],
+          "per_turn": ["UserPromptSubmit", "UserPromptExpansion", "Stop", "StopFailure"],
+          "tool_execution": ["PreToolUse", "PermissionRequest", "PermissionDenied", "PostToolUse", "PostToolUseFailure", "PostToolBatch"],
+          "agents": ["SubagentStart", "SubagentStop", "TeammateIdle", "TaskCreated", "TaskCompleted"],
+          "filesystem": ["FileChanged", "CwdChanged", "ConfigChange", "InstructionsLoaded", "WorktreeCreate", "WorktreeRemove"],
+          "context": ["PreCompact", "PostCompact", "Elicitation", "ElicitationResult", "Notification"]
+        },
+        "can_modify_input": ["PreToolUse", "PermissionRequest"],
+        "can_block": ["PreToolUse", "UserPromptSubmit", "UserPromptExpansion", "Stop", "PermissionRequest", "PostToolUse", "PostToolUseFailure", "PostToolBatch", "SubagentStop", "TeammateIdle", "TaskCreated", "TaskCompleted", "ConfigChange", "WorktreeCreate", "PreCompact", "Elicitation", "ElicitationResult"],
+        "matcher_field": "if",
+        "config_location": "settings.json[hooks]"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:general-purpose",
+      "name": "Claude Code general-purpose Subagent",
+      "description": "Default subagent for researching complex questions, searching for code, and executing multi-step tasks. Has access to all tools. Spawned via tool:agent with subagent_type='general-purpose'. Isolated context — no memory of parent conversation.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "task_description",
+        "schema": "schema:task-description:v1"
+      },
+      "output": {
+        "type": "task_result",
+        "schema": "schema:task-result:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:bash",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:edit",
+        "skill:claude-code:tool:write",
+        "skill:claude-code:tool:web"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "general-purpose",
+        "tool_whitelist": "*",
+        "context_isolation": "full",
+        "model_override_supported": true,
+        "supports_background": true,
+        "supports_worktree": true
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:explore",
+      "name": "Claude Code Explore Subagent",
+      "description": "Read-only subagent for fast codebase exploration: file pattern search, keyword grep, codebase questions. Cannot edit, write, or spawn further subagents. Thoroughness levels: quick, medium, very thorough.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "codebase_query",
+        "schema": "schema:codebase-query:v1"
+      },
+      "output": {
+        "type": "file_findings",
+        "schema": "schema:file-findings:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:bash",
+        "skill:claude-code:tool:web"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "Explore",
+        "tool_whitelist": ["Bash", "Read", "Glob", "Grep", "WebFetch", "WebSearch", "ListMcpResourcesTool", "ReadMcpResourceTool", "TodoWrite"],
+        "tool_blacklist": ["Agent", "Edit", "Write", "NotebookEdit", "ExitPlanMode"],
+        "context_isolation": "full",
+        "thoroughness_levels": ["quick", "medium", "very thorough"],
+        "side_effectful": false
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:plan",
+      "name": "Claude Code Plan Subagent",
+      "description": "Software architect subagent for designing implementation plans. Read-only. Returns step-by-step plans, identifies critical files, considers architectural trade-offs. Cannot write code itself — outputs plans for the parent to execute.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "task_description",
+        "schema": "schema:task-description:v1"
+      },
+      "output": {
+        "type": "implementation_plan",
+        "schema": "schema:implementation-plan:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:bash",
+        "skill:claude-code:tool:web"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "Plan",
+        "tool_whitelist": ["Bash", "Read", "Glob", "Grep", "WebFetch", "WebSearch", "ListMcpResourcesTool", "ReadMcpResourceTool", "TodoWrite"],
+        "tool_blacklist": ["Agent", "Edit", "Write", "NotebookEdit", "ExitPlanMode"],
+        "context_isolation": "full",
+        "side_effectful": false,
+        "output_shape": "step-by-step plan with file targets"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:code-review-judge",
+      "name": "Claude Code Code Review Subagent",
+      "description": "Reviews completed code changes for correctness, performance, and quality before commit. Has all tools — can run tests, verify build, propose fixes. Should be invoked proactively before any git commit or push.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "code_diff",
+        "schema": "schema:code-diff:v1"
+      },
+      "output": {
+        "type": "review_report",
+        "schema": "schema:review-report:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:bash",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:edit",
+        "skill:claude-code:tool:write",
+        "skill:claude-code:tool:web"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "code-review-judge",
+        "tool_whitelist": "*",
+        "context_isolation": "full",
+        "trigger_phase": "pre-commit",
+        "side_effectful": true
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:agentic-systems-architect",
+      "name": "Claude Code Agentic Systems Architect Subagent",
+      "description": "Expert guidance on designing agentic systems, multi-agent architectures, agent-human interaction patterns, prompt engineering for agents. Use for meta-level questions about how AI agents work and can be best leveraged.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "agentic_design_question",
+        "schema": "schema:agentic-design-question:v1"
+      },
+      "output": {
+        "type": "design_recommendation",
+        "schema": "schema:design-recommendation:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:web"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "agentic-systems-architect",
+        "tool_whitelist": "*",
+        "context_isolation": "full",
+        "domain": "meta-agent design"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:frontend-design-elevate",
+      "name": "Claude Code Frontend Design Subagent",
+      "description": "Reviews and elevates frontend design plans with expert UI/UX sensibility, modern design patterns, refined aesthetic direction. Triggered after a frontend design plan has been outlined, before implementation.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "design_plan",
+        "schema": "schema:design-plan:v1"
+      },
+      "output": {
+        "type": "elevated_design",
+        "schema": "schema:elevated-design:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:edit",
+        "skill:claude-code:tool:write",
+        "skill:claude-code:tool:web"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "frontend-design-elevate",
+        "tool_whitelist": ["Edit", "Write", "NotebookEdit", "Glob", "Grep", "Read", "WebFetch", "WebSearch"],
+        "tool_blacklist": ["Bash", "Agent"],
+        "context_isolation": "full",
+        "trigger_phase": "post-plan-pre-implementation"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:claude-code-guide",
+      "name": "Claude Code Documentation Subagent",
+      "description": "Answers questions about Claude Code (CLI features, hooks, slash commands, MCP servers, settings, IDE integrations), Claude Agent SDK, and Claude API. Read-only — does not modify code.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "claude_code_question",
+        "schema": "schema:claude-code-question:v1"
+      },
+      "output": {
+        "type": "claude_code_answer",
+        "schema": "schema:claude-code-answer:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:bash",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:web"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "claude-code-guide",
+        "tool_whitelist": ["Bash", "Read", "WebFetch", "WebSearch"],
+        "tool_blacklist": ["Edit", "Write", "Agent"],
+        "context_isolation": "full",
+        "side_effectful": false,
+        "reuse_pattern": "check for running agent before spawning new"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    },
+    {
+      "_id": "skill:claude-code:agent:statusline-setup",
+      "name": "Claude Code Statusline Setup Subagent",
+      "description": "Configures the user's Claude Code status line setting. Minimal scope: only Read and Edit tools — touches settings.json only.",
+      "version": "1.0.0",
+      "lifecycle": "active",
+      "input": {
+        "type": "statusline_request",
+        "schema": "schema:statusline-request:v1"
+      },
+      "output": {
+        "type": "statusline_config",
+        "schema": "schema:statusline-config:v1"
+      },
+      "dependencies": [
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:edit"
+      ],
+      "dependency_constraints": {
+        "skill:claude-code:tool:agent": {"version_range": ">=1.0.0"}
+      },
+      "parameter_sources": [],
+      "domain_fields": {
+        "subagent_type": "statusline-setup",
+        "tool_whitelist": ["Read", "Edit"],
+        "tool_blacklist": ["Bash", "Write", "Agent"],
+        "context_isolation": "full",
+        "scope": "settings.json only"
+      },
+      "skill_path": "skills/claude-code/SKILL.md"
+    }
+  ],
   "edges": [
     {
       "_id": "edge:query-analysis->schema-review",

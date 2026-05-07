@@ -163,6 +163,217 @@ CONSTRAINTS_SEED = [
         "severity": "fail",
         "category": "design_tokens",
     },
+
+    # ── leafygreen-ui: accessibility ─────────────────────────────────────────
+    {
+        "_id": "constraint:leafygreen-ui:focus-ring-required",
+        "skill_id": "skill:leafygreen-ui",
+        "rule_text": "Interactive elements must have a visible focus ring. outline:none without a :focus-visible replacement fails WCAG 2.4.7.",
+        "violation_paraphrase": "button or interactive element has outline set to none or 0 on focus with no custom focus-visible border or box-shadow replacement",
+        "examples": {
+            "violating": "button { outline: none } with no :focus-visible override",
+            "compliant": "button:focus-visible { box-shadow: 0 0 0 3px #007CAD }"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "accessibility",
+    },
+    {
+        "_id": "constraint:leafygreen-ui:aria-label-icon-button",
+        "skill_id": "skill:leafygreen-ui",
+        "rule_text": "Icon-only buttons (no visible text) must have aria-label. Screen readers cannot announce unlabeled icon buttons.",
+        "violation_paraphrase": "button element contains only an icon or SVG child with no aria-label prop and no visible text content",
+        "examples": {
+            "violating": "<IconButton><Icon /></IconButton> — no aria-label",
+            "compliant": "<IconButton aria-label=\"Close dialog\"><Icon /></IconButton>"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "accessibility",
+    },
+
+    # ── leafygreen-ui: design tokens ─────────────────────────────────────────
+    {
+        "_id": "constraint:leafygreen-ui:font-size-scale",
+        "skill_id": "skill:leafygreen-ui",
+        "rule_text": "Font sizes must come from the LeafyGreen type scale: 11, 12, 13, 14, 16, 18, 24, 32px. Off-scale sizes break type consistency.",
+        "violation_paraphrase": "font-size is set to a value not in the LeafyGreen type scale — off-scale values like 15px, 17px, 20px, or 22px",
+        "examples": {
+            "violating": "fontSize: '15px' or fontSize: '20px'",
+            "compliant": "fontSize: '16px' or fontSize: '14px'"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "design_tokens",
+    },
+    {
+        "_id": "constraint:leafygreen-ui:border-radius-token",
+        "skill_id": "skill:leafygreen-ui",
+        "rule_text": "border-radius must use a LeafyGreen token value: 2px, 4px, 6px, 8px, 16px, or 100px (pill). Arbitrary values diverge from the design system.",
+        "violation_paraphrase": "border-radius is set to an arbitrary value not in the token set: 2px, 4px, 6px, 8px, 16px, 100px — e.g. 3px, 5px, 10px, 12px",
+        "examples": {
+            "violating": "borderRadius: '10px' or borderRadius: '3px'",
+            "compliant": "borderRadius: '8px' or borderRadius: '4px'"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "design_tokens",
+    },
+
+    # ── ui-builder: accessibility + layout ───────────────────────────────────
+    {
+        "_id": "constraint:ui-builder:min-touch-target",
+        "skill_id": "skill:ui-builder",
+        "rule_text": "Interactive elements must have a minimum touch target of 44×44px (WCAG 2.5.5, iOS/Android HIG).",
+        "violation_paraphrase": "button or interactive element has height or width set below 44px — e.g. height:32px, width:36px, or size:sm with no touch-target padding",
+        "examples": {
+            "violating": "<Button style={{height: '32px', width: '80px'}}>",
+            "compliant": "<Button style={{height: '44px', minWidth: '44px'}}>"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "accessibility",
+    },
+    {
+        "_id": "constraint:ui-builder:max-line-length",
+        "skill_id": "skill:ui-builder",
+        "rule_text": "Text containers must not exceed 75ch or 680px. Longer lines reduce reading comfort and comprehension.",
+        "violation_paraphrase": "text container or paragraph element has max-width greater than 680px or 75ch, or has no max-width with flowing prose content",
+        "examples": {
+            "violating": "<p style={{maxWidth: '900px'}}> or <div class=\"content\"> with no width constraint",
+            "compliant": "<p style={{maxWidth: '65ch'}}> or <div style={{maxWidth: '680px'}}>"
+        },
+        "constraint_embedding": None,
+        "severity": "note",
+        "category": "layout",
+    },
+    {
+        "_id": "constraint:ui-builder:heading-hierarchy",
+        "skill_id": "skill:ui-builder",
+        "rule_text": "Heading levels must not skip: h1→h2→h3 in sequence. Skipping levels (e.g. h1→h3) breaks screen reader document outline.",
+        "violation_paraphrase": "heading hierarchy skips a level — h1 followed directly by h3, or h2 followed by h4, without the intermediate heading level",
+        "examples": {
+            "violating": "<h1>Page</h1><h3>Section</h3> — h2 missing",
+            "compliant": "<h1>Page</h1><h2>Section</h2><h3>Subsection</h3>"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "accessibility",
+    },
+
+    # ── schema-review: schema quality ─────────────────────────────────────────
+    {
+        "_id": "constraint:schema-review:required-fields-declared",
+        "skill_id": "skill:schema-review",
+        "rule_text": "JSON Schema objects with properties must declare a required array. Omitting required makes every field silently optional.",
+        "violation_paraphrase": "JSON Schema object has defined properties but no required array, or required is an empty array, leaving all properties optional by default",
+        "examples": {
+            "violating": "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}} — no required",
+            "compliant": "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}},\"required\":[\"name\"]}"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "schema_quality",
+    },
+
+    # ── claude-code:tool:bash: safety rules ───────────────────────────────────
+    {
+        "_id": "constraint:claude-code:bash:no-verify-bypass",
+        "skill_id": "skill:claude-code:tool:bash",
+        "rule_text": "Never pass --no-verify to git commands unless the user explicitly requests it. Skipping hooks bypasses linting and pre-commit checks that exist for a reason.",
+        "violation_paraphrase": "git command includes --no-verify flag without the user having explicitly asked to skip hooks",
+        "examples": {
+            "violating": "git commit --no-verify -m 'fix' — skips pre-commit hook silently",
+            "compliant": "git commit -m 'fix' — hooks run normally; if a hook fails, investigate and fix the underlying issue"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "safety",
+    },
+    {
+        "_id": "constraint:claude-code:bash:no-force-push-main",
+        "skill_id": "skill:claude-code:tool:bash",
+        "rule_text": "Never force-push to main or master without explicit user instruction. Force-pushing to main can destroy teammates' work and is irreversible on most remotes.",
+        "violation_paraphrase": "git push --force or git push --force-with-lease targeting the main or master branch without the user having explicitly directed this action",
+        "examples": {
+            "violating": "git push --force origin main — overwrites remote main history",
+            "compliant": "git push origin feature-branch — or warn user and wait for explicit confirmation before force-pushing to main"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "safety",
+    },
+    {
+        "_id": "constraint:claude-code:bash:destructive-requires-confirm",
+        "skill_id": "skill:claude-code:tool:bash",
+        "rule_text": "Operations that delete files, drop databases, or irreversibly modify shared state require user confirmation before running, even in auto permission mode.",
+        "violation_paraphrase": "destructive command (rm -rf, DROP TABLE, git reset --hard, git clean -f, branch -D) executed without user having confirmed the action in the current conversation turn",
+        "examples": {
+            "violating": "rm -rf ./node_modules && rm -rf ./dist — run immediately without asking",
+            "compliant": "Tell user: 'I'm about to run rm -rf ./dist — confirm?' and wait for approval"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "safety",
+    },
+
+    # ── claude-code:model-selection: fast mode rules ──────────────────────────
+    {
+        "_id": "constraint:claude-code:model:fast-mode-opus-only",
+        "skill_id": "skill:claude-code:model-selection",
+        "rule_text": "Fast mode (/fast) is only available on claude-opus-4-7 sessions. Recommending /fast on a Sonnet or Haiku session misleads the user — it will have no effect.",
+        "violation_paraphrase": "agent suggests toggling /fast or describes fast mode as available when the current session model is claude-sonnet-4-6 or claude-haiku-4-5-20251001",
+        "examples": {
+            "violating": "User: 'how do I speed this up?' → 'You can use /fast to enable faster output' (on a Sonnet session)",
+            "compliant": "On Sonnet: 'Fast mode isn't available on Sonnet — switch to Opus 4.7 first with --model claude-opus-4-7'"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "model_config",
+    },
+
+    # ── claude-code:tool:agent: orchestration rules ───────────────────────────
+    {
+        "_id": "constraint:claude-code:agent:no-delegate-understanding",
+        "skill_id": "skill:claude-code:tool:agent",
+        "rule_text": "Never delegate synthesis or understanding to a subagent. Phrases like 'based on your findings, fix the bug' or 'based on the research, implement it' push judgment to the subagent. Write prompts that prove you understood: include file paths, line numbers, what specifically to change.",
+        "violation_paraphrase": "agent prompt for a subagent contains delegated understanding phrases — 'based on your findings fix', 'based on the research implement', 'using what you discovered build' — without specifying concrete targets",
+        "examples": {
+            "violating": "Agent(prompt='Explore the auth module, then based on your findings, fix the bug') — understanding delegated",
+            "compliant": "Agent(prompt='In auth/middleware.py:47, the JWT expiry check uses > instead of >=. Change it to >= and add a test in tests/test_auth.py:120.')"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "orchestration",
+    },
+    {
+        "_id": "constraint:claude-code:agent:parallel-independent-only",
+        "skill_id": "skill:claude-code:tool:agent",
+        "rule_text": "Only launch multiple agents in parallel when their work is genuinely independent. Agents launched in parallel cannot share intermediate results — if agent B needs A's output, run A first, synthesize, then launch B.",
+        "violation_paraphrase": "multiple agents launched in a single parallel batch where one agent's task depends on another agent's output or findings",
+        "examples": {
+            "violating": "Agent A: 'Find the bug in auth' | Agent B (parallel): 'Fix what Agent A finds in auth' — B needs A's result",
+            "compliant": "Agent A: 'Find the bug' → wait → read result → Agent B: 'Fix auth/middleware.py:47, change > to >='"
+        },
+        "constraint_embedding": None,
+        "severity": "warn",
+        "category": "orchestration",
+    },
+
+    # ── claude-code:tool:web: url policy ─────────────────────────────────────
+    {
+        "_id": "constraint:claude-code:web:no-generated-urls",
+        "skill_id": "skill:claude-code:tool:web",
+        "rule_text": "Never generate or guess URLs for WebFetch. Only fetch URLs provided by the user or returned from a prior WebSearch. Guessed URLs may resolve to unrelated or sensitive content.",
+        "violation_paraphrase": "WebFetch called with a URL that was not provided by the user in their message and was not returned by a prior WebSearch tool result in this conversation",
+        "examples": {
+            "violating": "WebFetch('https://docs.anthropic.com/claude/models') — URL guessed from training knowledge",
+            "compliant": "WebSearch('Claude model IDs') → result includes URL → WebFetch(that URL)"
+        },
+        "constraint_embedding": None,
+        "severity": "fail",
+        "category": "safety",
+    },
 ]
 
 RUNS_TTL_SECONDS = 60 * 60 * 24 * 90
@@ -241,10 +452,11 @@ def seed():
 
     skills_data = json.loads(SKILLS_PATH.read_text())
 
-    if skills_data["skills"]:
-        compat_docs = [_derive_compat_fields(s) for s in skills_data["skills"]]
+    all_skills = skills_data["skills"] + skills_data.get("claude_code_skills", [])
+    if all_skills:
+        compat_docs = [_derive_compat_fields(s) for s in all_skills]
         db.skills.insert_many(compat_docs)
-        print(f"Inserted {len(compat_docs)} skills")
+        print(f"Inserted {len(compat_docs)} skills ({len(skills_data['skills'])} core + {len(skills_data.get('claude_code_skills', []))} claude-code)")
 
     if skills_data["edges"]:
         db.edges.insert_many(skills_data["edges"])
@@ -264,6 +476,7 @@ def seed():
 
     db.constraints.insert_many(CONSTRAINTS_SEED)
     print(f"Inserted {len(CONSTRAINTS_SEED)} constraint docs (embeddings pending)")
+    _resubmit_vector_index(db)
 
     runs_count = db.runs.estimated_document_count()
     print(f"runs collection preserved: {runs_count} existing documents")
@@ -277,6 +490,30 @@ def seed():
             print(f"  {state}: {count}")
 
     print("\nDone. Run 'python scripts/validate.py' to test.")
+
+
+def _resubmit_vector_index(db) -> None:
+    """Resubmit the Layer 2 vector search index after the constraints collection
+    is dropped and recreated. Silently skips on local MongoDB without mongot
+    (OperationFailure) — Layer 2 vector search requires Atlas or MongoDB 8.2+
+    with mongot running."""
+    try:
+        from pymongo.operations import SearchIndexModel
+        model = SearchIndexModel(
+            definition={
+                "fields": [
+                    {"type": "vector", "path": "constraint_embedding",
+                     "numDimensions": 256, "similarity": "cosine"},
+                    {"type": "filter", "path": "skill_id"},
+                ]
+            },
+            name="constraint_embedding_index",
+            type="vectorSearch",
+        )
+        db.constraints.create_search_index(model)
+        print("  vector index: submitted (PENDING → READY in ~1-3 min)")
+    except Exception:
+        pass  # local mongod without mongot — Layer 2 vector search not available
 
 
 def _load_local_overlay(db) -> None:

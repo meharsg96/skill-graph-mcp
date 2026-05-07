@@ -18,12 +18,16 @@ consulted first; the skill's own `domain_fields` is the fallback.
 
 Usage:
     pip install -r requirements.txt
-    python server.py
+    python server.py                        # stdio  — for Claude Code / MCP hosts
+    MCP_TRANSPORT=streamable-http python server.py  # HTTP   — for Claude web remote connector
 
 Environment:
     MONGODB_URI    Mongo connection string (default: mongodb://localhost:27017)
     SESSION_ID     Tag attached to every tool-call log entry
                    (auto fallback: session:auto-<pid>-<epoch>)
+    MCP_TRANSPORT  Transport mode: "stdio" (default) or "streamable-http"
+    MCP_HOST       Bind host for HTTP mode (default: 127.0.0.1)
+    MCP_PORT       Bind port for HTTP mode (default: 8000)
 """
 
 import json
@@ -33,12 +37,15 @@ from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastmcp import FastMCP
 from pymongo import MongoClient
 
+REPO_ROOT = Path(__file__).resolve().parent
+load_dotenv(REPO_ROOT / ".env")
+
 DB_NAME = os.environ.get("SKILL_GRAPH_DB", "skill_graph")
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
-REPO_ROOT = Path(__file__).resolve().parent
 
 # Trusted roots for resolving skill_path. Canonical skills live under
 # REPO_ROOT; local-overlay skills (v2.5+) live under LOCAL_DIR if the
@@ -871,5 +878,130 @@ def impact_analysis(skill_id: str, max_depth: int = 10) -> dict:
     }
 
 
+# Calibrated against 3 labeled leafygreen-ui artifacts (voyage-4).
+# Expand to 10-20 artifacts before treating these as production thresholds.
+_LAYER2_LOW_THRESHOLD = 0.70
+_LAYER2_HIGH_THRESHOLD = 0.725
+_LAYER2_INDEX = "constraint_embedding_index"
+
+
+@mcp.tool()
+@log_tool_call
+def check_constraints(skill_id: str, fact_summary: str) -> dict:
+    """Check a fact summary against Layer 2 semantic constraints for a skill.
+
+    Layer 2 semantic validation: embeds the fact summary via Voyage AI
+    and runs $vectorSearch against stored violation paraphrases for the
+    skill. Returns per-constraint verdicts with cosine similarity scores.
+
+    Two-threshold scoring:
+      score >= 0.90 → escalate (likely violation)
+      score >= 0.82 → flag    (possible violation)
+      score <  0.82 → clean
+
+    `fact_summary` must be a canonical natural-language statement of
+    observable facts extracted from the artifact (color values, spacing,
+    ARIA attributes, etc.) — NOT raw artifact text. Use
+    scripts/extract_fact_summary.py to produce it.
+
+    Preconditions:
+      VOYAGE_API_KEY set, MONGODB_URI pointing to Atlas or MongoDB 8.2+ with mongot,
+      constraint_embedding_index READY (scripts/create_atlas_indexes.py),
+      embeddings populated (scripts/seed_constraint_embeddings.py).
+    """
+    voyage_key = os.environ.get("VOYAGE_API_KEY")
+    if not voyage_key:
+        return {"error": "VOYAGE_API_KEY not set — Layer 2 unavailable"}
+
+    try:
+        import voyageai
+    except ImportError:
+        return {"error": "voyageai not installed — run: pip install voyageai"}
+
+    try:
+        vc = voyageai.Client(api_key=voyage_key)
+        embedding_result = vc.embed([fact_summary], model="voyage-4", input_type="query",
+                                     output_dimension=256, output_dtype="int8")
+        query_vector = embedding_result.embeddings[0]
+    except Exception as e:
+        return {"error": f"Voyage AI embedding failed: {e}"}
+
+    pipeline = [
+        {
+            "$vectorSearch": {
+                "index": _LAYER2_INDEX,
+                "path": "constraint_embedding",
+                "queryVector": query_vector,
+                "exact": True,
+                "limit": 20,
+                "filter": {"skill_id": {"$eq": skill_id}},
+            }
+        },
+        {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+        {
+            "$project": {
+                "_id": 1,
+                "rule_text": 1,
+                "severity": 1,
+                "category": 1,
+                "score": 1,
+            }
+        },
+    ]
+
+    try:
+        results = list(db.constraints.aggregate(pipeline))
+    except Exception as e:
+        msg = str(e)
+        if "$vectorSearch" in msg or "not supported" in msg.lower():
+            return {
+                "error": (
+                    "$vectorSearch requires MongoDB 8.2+ with mongot, or Atlas. "
+                    "Update MONGODB_URI to an Atlas connection string, "
+                    "or start mongot alongside mongod (Linux only as of 8.2)."
+                )
+            }
+        return {"error": f"vector search failed: {msg}"}
+
+    def _verdict(score: float) -> str:
+        if score >= _LAYER2_HIGH_THRESHOLD:
+            return "escalate"
+        if score >= _LAYER2_LOW_THRESHOLD:
+            return "flag"
+        return "clean"
+
+    checks = [
+        {
+            "constraint_id": r["_id"],
+            "score": round(r["score"], 4),
+            "verdict": _verdict(r["score"]),
+            "severity": r.get("severity"),
+            "category": r.get("category"),
+            "rule_text": r.get("rule_text"),
+        }
+        for r in results
+    ]
+
+    summary = {
+        "total": len(checks),
+        "escalate": sum(1 for c in checks if c["verdict"] == "escalate"),
+        "flag": sum(1 for c in checks if c["verdict"] == "flag"),
+        "clean": sum(1 for c in checks if c["verdict"] == "clean"),
+    }
+
+    return {
+        "skill_id": skill_id,
+        "thresholds": {"low": _LAYER2_LOW_THRESHOLD, "high": _LAYER2_HIGH_THRESHOLD},
+        "checks": checks,
+        "summary": summary,
+    }
+
+
 if __name__ == "__main__":
-    mcp.run()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "streamable-http":
+        host = os.environ.get("MCP_HOST", "127.0.0.1")
+        port = int(os.environ.get("MCP_PORT", "8000"))
+        mcp.run(transport="streamable-http", host=host, port=port)
+    else:
+        mcp.run()

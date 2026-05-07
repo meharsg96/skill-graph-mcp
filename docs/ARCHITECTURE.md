@@ -25,13 +25,14 @@ sites must be updated.
 
 ## 3. Gateway — `server.py`
 
-Ten FastMCP tools wrap MongoDB queries:
+Thirteen FastMCP tools wrap MongoDB queries:
 
 - v1 (parameter retrieval, validation, traversal): `get_skill_contract`,
   `get_tokens`, `get_components`, `get_layouts`, `validate_chain`,
   `traverse_dependencies`
 - v2 (contracts, routing, impact, tenants): `route_task`, `search_skills`,
-  `list_skills`, `get_skill_instructions`, `impact_analysis`
+  `list_skills`, `get_skill_instructions`, `impact_analysis`,
+  `get_preferences`, `list_preferences`
 
 **The load-bearing invariant:** every read tool filters by `lifecycle: "active"`
 *by default* so inactive skills are invisible to consumers. The five v2 tools
@@ -115,6 +116,76 @@ return different chains — both discoverable via `list_skills` and
 This is the architecture acting as a *design tool*: the agent's
 unprompted observation in R2 became a typed, testable schema change
 in v2.2.0. See `notes/r2-leafygreen.md` F5 for the full thread.
+
+## 5c. Claude Code subgraph + runtime hook emission (v2.11.0)
+
+The Claude Code CLI runtime is itself modeled as a typed skill cluster:
+19 nodes under `skill:claude-code:*` covering permission modes, model
+selection, every built-in tool (bash, read, edit, write, agent, mcp,
+web), slash commands, hooks, and 8 subagent types as separate skills
+(general-purpose, explore, plan, code-review-judge,
+agentic-systems-architect, frontend-design-elevate, claude-code-guide,
+statusline-setup). Subagent skills carry `domain_fields.tool_whitelist`
+so capability scoping is queryable, not just documented.
+
+7 constraints under `constraint:claude-code:*` describe runtime
+behavior rules (no-verify-bypass, no-force-push-main,
+destructive-requires-confirm, fast-mode-opus-only,
+no-delegate-understanding, parallel-independent-only,
+no-generated-urls). These are the same shape as artifact constraints
+(rule_text + violation_paraphrase + examples), but their target is
+the agent's tool-call surface, not a generated artifact.
+
+```
+db.constraints
+   │  (skill_id starts with skill:claude-code:*)
+   ▼
+scripts/emit_hooks.py
+   │  (MATCHERS dispatch table maps constraint_id → matcher + event)
+   ▼
+.claude/hooks.generated.json    ──merge──►   .claude/settings.local.json
+                                                       │
+                                                       ▼
+                                          Claude Code session reads hooks
+                                                       │
+                                                       ▼
+                              PreToolUse / SubagentStart / UserPromptExpansion fires
+                                                       │
+                                                       ▼
+                              scripts/hooks/check_constraint.py evaluates
+                                                       │
+                                                       ▼
+                              {outcome: allow|ask|deny, reason: rule_text}
+```
+
+**Severity → outcome mapping:** `fail`→`deny`, `warn`→`ask`,
+`note`→`allow`. The runtime hook script never returns `updatedInput` —
+deny-only enforcement. Silent input rewriting masks intent;
+block-with-explanation is the agreed contract.
+
+**Fail-open under infrastructure failure:** the hook script returns
+`outcome: allow` with a stderr warning when MongoDB is unreachable,
+when `pymongo` isn't on its PATH, when stdin is malformed, or when
+the named constraint doesn't exist. The hook must never block tool
+calls because of infrastructure issues — only because of explicit
+matched rules.
+
+**Drift safety:** every constraint emitted to a hook entry must have
+a corresponding evaluator function in `EVALUATORS` in
+`check_constraint.py`. Constraints with a `MATCHERS` entry but no
+evaluator fail-open at runtime (logged to stderr). Constraints with
+no `MATCHERS` entry surface in the emitted fragment's `_meta.skipped`
+list — explicit rather than silent.
+
+**Cross-machine policy distribution:** the constraint set in MongoDB
+plus the `MATCHERS` dispatch table together form the deployable
+artifact. Clone the repo, run `seed.py` + `emit_hooks.py`, merge into
+`settings.local.json` — every contributor gets identical guardrails.
+The constraints corpus is the team's safety policy, version-controlled
+as code, queryable through the same MCP tools as the skill graph.
+
+See `skills/harness/SKILL.md` § "Emitting hook config from constraints"
+for the authoring workflow.
 
 ## 6. Edges collection
 
