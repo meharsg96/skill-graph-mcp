@@ -36,3 +36,12 @@ skills/local/
 *-local.json
 *.local.json
 .skill-graph-local/
+
+# v2.11+: Claude Code session state and emit_hooks output. The hooks
+# fragment is reproducible from db.constraints + scripts/emit_hooks.py,
+# so committing it would just churn whenever the constraint set changes.
+.claude/
+
+# Blog presentation working set (svg/pptx/build artifacts) — not part of
+# the codebase, not committed.
+decks/

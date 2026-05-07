@@ -55,24 +55,33 @@ python scripts/measure_baseline.py              # modeled file-read baseline,
 
 ```
 skill-graph-mcp/
-├── server.py              # MCP server — 10 tools, instrumented
+├── server.py              # MCP server — 13 tools, instrumented
 ├── schema/
-│   ├── skills.json        # 6 skills (5 active, 1 inactive) + 5 edges (ABI shape)
-│   └── parameters.json    # tenant overrides (client-a, client-b)
+│   ├── skills.json        # core + claude-code subgraph (29 active, 1 inactive) + edges
+│   ├── parameters.json    # tenant overrides (client-a, client-b)
+│   └── preferences.json   # v2.4: per-owner policies
 ├── scripts/
-│   ├── seed.py            # Seeds skills + edges + parameters; preserves runs
+│   ├── seed.py            # Seeds skills + edges + parameters + constraints; preserves runs
 │   ├── seed_tenants.py    # Idempotent re-seed of just the parameters collection
+│   ├── seed_constraint_embeddings.py  # v2.9: Voyage AI embeddings on constraint paraphrases
 │   ├── validate.py        # Plan validation with $graphLookup
 │   ├── route.py           # CLI wrapper for route_task
 │   ├── impact.py          # CLI wrapper for impact_analysis
 │   ├── analyze.py         # Renders the blog measurement tables from db.runs
+│   ├── emit_hooks.py      # v2.11: emit Claude Code hooks from db.constraints
+│   ├── hooks/
+│   │   └── check_constraint.py   # v2.11: PreToolUse/SubagentStart runtime evaluator
 │   ├── run_session.sh     # Tags SESSION_ID for everything that follows
 │   └── queries.js         # mongosh examples
-├── tests/                 # pytest — 39 tests across v1 + v2
+├── tests/                 # pytest — 194 tests across v1 + v2 + claude-code
 ├── docs/
 │   ├── ARCHITECTURE.md    # load-bearing invariants
 │   ├── METRICS.md         # what's observable from which tool
 │   └── MIGRATION_v1_v2.md # what changed; why v1 callers need zero changes
+├── skills/
+│   ├── harness/SKILL.md   # v2.3: self-documenting meta-skill (operator manual)
+│   ├── leafygreen/SKILL.md  # v2.1: MongoDB design system
+│   └── claude-code/SKILL.md # v2.11: Claude Code CLI runtime as a skill cluster
 └── README.md
 ```
 
@@ -102,7 +111,7 @@ Inactive skills never appear in results. Type mismatches are caught before execu
 
 ## MCP server
 
-`server.py` exposes ten tools backed by MongoDB. These are semantic graph operations, not raw database access:
+`server.py` exposes thirteen tools backed by MongoDB. These are semantic graph operations, not raw database access:
 
 ```
 # v1 — parameter retrieval, validation, traversal
@@ -113,12 +122,14 @@ get_layouts(skill_id, breakpoint=, tenant=)
 validate_chain(skill_ids)
 traverse_dependencies(skill_id)
 
-# v2 — contracts, routing, impact, tenants
+# v2 — contracts, routing, impact, tenants, preferences
 route_task(target_output_type)                    # backward $graphLookup → ordered chain
 search_skills(query, limit=)                      # Mongo text-index search (ranked relevance)
 list_skills(lifecycle=, input_type=, output_type=)  # declarative enumeration (use this for "list everything")
 get_skill_instructions(skill_id)                  # read the skill's markdown body
 impact_analysis(skill_id)                         # direct + transitive consumers + incompatible edges
+get_preferences(skill_id=, owner=)                # v2.6: per-owner policy lookup
+list_preferences(scope=, owner=)                  # v2.7: declarative preference enumeration
 ```
 
 To connect to Claude Code:
@@ -159,12 +170,17 @@ historical sessions accumulate. Documents expire after 90 days via a TTL index.
 | Tag | Blog | Adds |
 |-----|------|------|
 | [`v1`](https://github.com/meharsg96/skill-graph-mcp/tree/v1) | Your Agent Reads Around Your Skill Files | typed skill graph, 6 tools |
-| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill, **React test chain**, **`skill:harness` self-documenting meta-skill**, **`preferences` collection** for per-deployment usage policies |
+| [`v2`](https://github.com/meharsg96/skill-graph-mcp/tree/v2) | Agent Skills Need Contracts, Not Just Descriptions | ABI shape, routing, impact analysis, tenant params, **LeafyGreen UI** as a real-world design-system skill, **React test chain**, **`skill:harness` self-documenting meta-skill**, **`preferences` collection** for per-deployment usage policies, **local overlay** (`$SKILL_GRAPH_LOCAL_DIR`), **claude-code subgraph** (Claude Code CLI runtime as 19 typed skills) + **`emit_hooks.py`** (constraints → Claude Code `settings.json` hook config; deny-only runtime enforcement) |
 | `v3` *(planned)* | TBD | artifact validation + repair |
 
 **v2.3.0 adds two things, both informed by R3:**
 - **`skill:harness`** — the system documents itself using its own pattern. Ask `get_skill_instructions(skill:harness)` for SESSION_ID conventions, TTL behavior, analyze.py recipes, archival, and pitfalls. The architecture eats its own dog food.
 - **Richer `get_skill_instructions`** — now returns markdown body + `line_count` + `accessibility_rules` + related skills (deps + direct consumers) + `source: "graph"` provenance. Strictly more useful than `Read`, so the agent has a real reason to prefer the graph path.
+
+**v2.11.0 turns the graph into a runtime guard rail:**
+- **`skill:claude-code:*` subgraph** — Claude Code's CLI itself as 19 typed skill nodes (permission modes, model selection, every built-in tool, 8 subagent types). Subagent skills declare `domain_fields.tool_whitelist` so capability scoping is queryable rather than just documented in prose.
+- **7 runtime constraints** — no-verify-bypass, no-force-push-main, destructive-requires-confirm, fast-mode-opus-only, no-delegate-understanding, parallel-independent-only, no-generated-urls. Same `(rule_text, violation_paraphrase, examples)` shape as artifact constraints — but the target is the agent's tool calls, not the artifacts the agent produces.
+- **`scripts/emit_hooks.py`** translates `db.constraints` into a `.claude/settings.local.json` `hooks` fragment; **`scripts/hooks/check_constraint.py`** is the runtime evaluator. Deny-only enforcement — the hook never modifies tool input. `severity:fail`→`outcome:deny`, `severity:warn`→`outcome:ask`. Fail-open under any infrastructure failure.
 
 To add your own parameterized skill to the graph (the question every reader
 asks after the series), see [docs/ADDING_A_SKILL.md](docs/ADDING_A_SKILL.md) —

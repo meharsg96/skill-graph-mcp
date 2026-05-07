@@ -211,6 +211,124 @@ local content is, by design, not documented in this repo.
 
 ---
 
+## Emitting hook config from constraints (v2.11.0)
+
+The `db.constraints` collection holds Layer 2 semantic rules for
+artifact validation (e.g. LeafyGreen accessibility, ui-builder layout).
+A subset of those constraints — anything under `skill:claude-code:*` —
+describes runtime behavior of Claude Code itself, and can be translated
+deterministically into a `settings.json` `hooks` fragment.
+
+The pipeline:
+
+```
+db.constraints  ──► scripts/emit_hooks.py  ──► .claude/hooks.generated.json
+                                                       │
+                              merge into .claude/settings.local.json
+                                                       │
+              Claude Code at session start reads hooks
+                                                       │
+PreToolUse / SubagentStart / UserPromptExpansion fire ─►
+              scripts/hooks/check_constraint.py
+                          │
+        looks up the constraint in db.constraints,
+        evaluates the per-constraint matcher,
+        returns {outcome: allow|ask|deny, reason: rule_text}
+```
+
+**Generate the fragment:**
+
+```bash
+python scripts/emit_hooks.py --output .claude/hooks.generated.json
+python scripts/emit_hooks.py --print            # stdout, no file
+```
+
+The output shape is `{hooks: [...], _meta: {...}}`. Merge the `hooks`
+array into `.claude/settings.local.json`'s `hooks` block. `_meta.skipped`
+lists every claude-code constraint that has no entry in the script's
+`MATCHERS` dispatch table — surfaced rather than silently dropped.
+
+**Severity → outcome mapping:**
+
+| Constraint `severity` | Hook `outcome` | Effect in Claude Code |
+|---|---|---|
+| `fail` | `deny` | Block the call, show `rule_text` as reason |
+| `warn` | `ask` | Surface to user with `rule_text`, await confirm |
+| `note` | `allow` | Log only (informational) |
+
+**Design rule: deny-only enforcement.** The runtime hook never returns
+`updatedInput` — it does not silently modify tool calls, even when a
+"safer" rewrite would be possible. Silent input rewriting masks intent;
+block-with-explanation is the agreed contract. If you need to rewrite
+a call, write the constraint as `warn` (→ `ask`) so the user can
+re-issue the corrected form themselves.
+
+**Adding a new claude-code constraint:**
+
+1. Append a constraint document to `CONSTRAINTS_SEED` in `scripts/seed.py`
+   — `_id` starts with `constraint:claude-code:<skill-slug>:<rule>`,
+   `skill_id` references the relevant `skill:claude-code:*` node.
+2. Add a corresponding entry to `MATCHERS` in `scripts/emit_hooks.py`
+   keyed by the same `_id`. The matcher is a pre-filter only (e.g.
+   `Bash(*--no-verify*)`); the real evaluation lives in
+   `scripts/hooks/check_constraint.py`.
+3. Add a per-constraint evaluator function to `EVALUATORS` in
+   `scripts/hooks/check_constraint.py` that returns `True` when the
+   tool input matches the violation pattern.
+4. Reseed: `python scripts/seed.py`.
+5. Re-emit: `python scripts/emit_hooks.py --output .claude/hooks.generated.json`.
+6. Merge the new entry into your live `settings.local.json`.
+
+A constraint with steps 1 + 2 but no `EVALUATORS` entry will fail-open
+at runtime (returns `outcome: allow` with a stderr warning). Useful for
+constraints whose violation pattern can't be detected from the hook
+payload alone — emit the matcher as advisory, evaluator returns False.
+
+**Failure modes** (all fail-open by design — the hook must never block
+tool calls due to infrastructure issues):
+- `pymongo` not on the hook's PATH → outcome=allow, stderr warning
+- MongoDB unreachable (2s timeout) → outcome=allow, stderr warning
+- Constraint not found in `db.constraints` → outcome=allow
+- Stdin payload malformed JSON → outcome=allow
+- `CONSTRAINT_ID` env var missing → outcome=allow
+
+**Cross-machine policy distribution:** the constraint set in MongoDB +
+the `MATCHERS` dispatch in `emit_hooks.py` together form the deployable
+artifact. Clone the repo, `seed.py`, `emit_hooks.py`, merge — every
+contributor gets identical guardrails. The constraints corpus is the
+team's safety policy, version-controlled as code.
+
+---
+
+## Querying the claude-code subgraph
+
+The 19 `skill:claude-code:*` nodes are visible to all the standard
+graph tools:
+
+```python
+list_skills()                         # all 33 active skills, including claude-code
+list_skills(input_type="task_description")
+                                       # claude-code:agent:general-purpose, :plan, etc.
+search_skills("subagent")             # ranked by relevance to subagent-related text
+get_skill_contract("skill:claude-code:tool:bash")
+                                       # → full ABI shape, dangerous_patterns, etc.
+get_skill_instructions("skill:claude-code:tool:agent")
+                                       # → skills/claude-code/SKILL.md content
+traverse_dependencies("skill:claude-code:agent:explore")
+                                       # → walks back to permission-mode root
+impact_analysis("skill:claude-code:permission-mode")
+                                       # → all 18 downstream tool/agent skills
+route_task("read-only codebase exploration")
+                                       # → resolves to claude-code:agent:explore chain
+```
+
+Use these instead of reading `skills/claude-code/SKILL.md` or
+`schema/skills.json` directly — the graph path is strictly more
+informative (returns related skills, version, lifecycle, source
+provenance).
+
+---
+
 ## Common misreadings
 
 Real ones observed in agent sessions; not bugs, but easy to mistake for bugs.

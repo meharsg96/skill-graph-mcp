@@ -20,7 +20,7 @@ def test_constraints_seeded(seeded):
     db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
     count = db.constraints.count_documents({})
     client.close()
-    assert count == 11
+    assert count == 18
 
 
 def test_constraint_no_green_on_white_present(seeded):

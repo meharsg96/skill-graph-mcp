@@ -23,8 +23,27 @@ def test_list_skills_default_returns_active_only(seeded, call):
         "skill:requirements-to-component",
         "skill:spec-to-components",
         "skill:harness",
+        "skill:claude-code:permission-mode",
+        "skill:claude-code:model-selection",
+        "skill:claude-code:tool:bash",
+        "skill:claude-code:tool:read",
+        "skill:claude-code:tool:edit",
+        "skill:claude-code:tool:write",
+        "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:mcp",
+        "skill:claude-code:tool:web",
+        "skill:claude-code:slash-commands",
+        "skill:claude-code:hooks",
+        "skill:claude-code:agent:general-purpose",
+        "skill:claude-code:agent:explore",
+        "skill:claude-code:agent:plan",
+        "skill:claude-code:agent:code-review-judge",
+        "skill:claude-code:agent:agentic-systems-architect",
+        "skill:claude-code:agent:frontend-design-elevate",
+        "skill:claude-code:agent:claude-code-guide",
+        "skill:claude-code:agent:statusline-setup",
     }
-    assert r["count"] == 10
+    assert r["count"] == 29
     # Inactive skill is excluded by default
     assert "skill:schema-review-v1" not in ids
 
@@ -37,7 +56,7 @@ def test_list_skills_lifecycle_inactive(seeded, call):
 
 def test_list_skills_lifecycle_any_includes_inactive(seeded, call):
     r = call(seeded.list_skills, lifecycle="any")
-    assert r["count"] == 11   # 10 active + 1 inactive (schema-review-v1)
+    assert r["count"] == 30   # 29 active + 1 inactive (schema-review-v1)
     ids = {s["_id"] for s in r["results"]}
     assert "skill:schema-review-v1" in ids
     # `lifecycle: any` strips the filter entirely
