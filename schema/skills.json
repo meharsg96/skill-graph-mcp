@@ -1076,7 +1076,10 @@
       },
       "dependencies": [
         "skill:claude-code:tool:agent",
+        "skill:claude-code:tool:bash",
         "skill:claude-code:tool:read",
+        "skill:claude-code:tool:edit",
+        "skill:claude-code:tool:write",
         "skill:claude-code:tool:web"
       ],
       "dependency_constraints": {

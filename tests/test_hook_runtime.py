@@ -218,6 +218,17 @@ def test_destructive_rm_root_path_asks(seeded):
     assert out["outcome"] == "ask"
 
 
+def test_destructive_rm_with_quoted_path(seeded):
+    """rm -rf "/path with spaces" — the regex shouldn't break on quote chars."""
+    out, _ = _run(
+        "constraint:claude-code:bash:destructive-requires-confirm",
+        {"tool_name": "Bash",
+         "tool_input": {"command": 'rm -rf "/Users/x/some dir/data"'}},
+    )
+    # Unscoped path → ask
+    assert out["outcome"] == "ask"
+
+
 def test_no_verify_only_matches_bash(seeded):
     """The matcher entry is `Bash(*--no-verify*)`, but the evaluator also
     checks tool_name. A WebFetch with '--no-verify' in url should NOT match."""

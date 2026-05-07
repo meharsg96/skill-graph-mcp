@@ -69,6 +69,27 @@ def test_emit_hooks_skips_unknown_constraints(seeded, emit_hooks_module):
         assert h["env"]["CONSTRAINT_ID"] in emit_hooks_module.MATCHERS
 
 
+def test_emitted_plus_skipped_equals_total_claude_code_constraints(seeded, emit_hooks_module):
+    """The script must account for every claude-code constraint — either
+    by emitting a hook or by listing it in _meta.skipped. Catches the case
+    where emit_hooks silently loses a constraint."""
+    from pymongo import MongoClient
+    client = MongoClient(os.environ["MONGODB_URI"])
+    db = client[os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
+    fragment = emit_hooks_module.emit_hooks(db)
+    total = db.constraints.count_documents(
+        {"skill_id": {"$regex": "^skill:claude-code:"}}
+    )
+    client.close()
+
+    emitted = len(fragment["hooks"])
+    skipped = len(fragment["_meta"]["skipped"])
+    assert emitted + skipped == total, (
+        f"claude-code constraints unaccounted for: total={total}, "
+        f"emitted={emitted}, skipped={skipped}"
+    )
+
+
 # ── runtime hook script (scripts/hooks/check_constraint.py) ────────────────
 
 HOOK_SCRIPT = REPO_ROOT / "scripts" / "hooks" / "check_constraint.py"
@@ -176,6 +197,47 @@ def test_hook_unknown_constraint_fails_open(seeded):
         {"tool_name": "Bash", "tool_input": {"command": "rm -rf /"}},
     )
     assert out["outcome"] == "allow"
+
+
+def test_emit_then_evaluate_round_trip(seeded, emit_hooks_module, tmp_path):
+    """End-to-end smoke: emit_hooks → write → reload → run check_constraint.py
+    against every emitted hook with a benign payload → confirm none crash and
+    each returns a valid outcome string. Sanity check that the emitted config
+    references no broken hook script paths."""
+    import os as _os
+    from pymongo import MongoClient
+
+    client = MongoClient(_os.environ["MONGODB_URI"])
+    db = client[_os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")]
+    fragment = emit_hooks_module.emit_hooks(db)
+    client.close()
+
+    out_path = tmp_path / "hooks.json"
+    out_path.write_text(json.dumps(fragment))
+    reloaded = json.loads(out_path.read_text())
+    assert reloaded["hooks"] == fragment["hooks"]
+
+    benign_payload = {"tool_name": "Bash", "tool_input": {"command": "echo hi"}}
+    for h in reloaded["hooks"]:
+        constraint_id = h["env"]["CONSTRAINT_ID"]
+        proc = subprocess.run(
+            [sys.executable, h["tool"]],
+            input=json.dumps(benign_payload),
+            capture_output=True,
+            text=True,
+            env={**_os.environ,
+                 "CONSTRAINT_ID": constraint_id,
+                 "MONGODB_URI": _os.environ["MONGODB_URI"],
+                 "SKILL_GRAPH_DB": _os.environ.get("SKILL_GRAPH_DB", "skill_graph_test")},
+            timeout=10,
+        )
+        assert proc.returncode == 0, (
+            f"hook crashed for {constraint_id}: {proc.stderr}"
+        )
+        out = json.loads(proc.stdout)
+        assert out["outcome"] in {"allow", "ask", "deny"}, (
+            f"unexpected outcome from {constraint_id}: {out}"
+        )
 
 
 def test_hook_no_input_fails_open(seeded):
