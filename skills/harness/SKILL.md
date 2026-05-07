@@ -298,6 +298,104 @@ artifact. Clone the repo, `seed.py`, `emit_hooks.py`, merge — every
 contributor gets identical guardrails. The constraints corpus is the
 team's safety policy, version-controlled as code.
 
+**Audit log (v2.11.x):** the runtime hook script writes one row to
+`db.runs` per matched constraint, so you can ask "which constraints
+fired in session X?" via `analyze.py`. Schema:
+
+```json
+{
+  "tool": "hook:check_constraint",
+  "params": {"constraint_id": "...", "tool_name": "Bash"},
+  "outcome": "deny",
+  "matched": true,
+  "session_id": "session:..."
+}
+```
+
+Default behavior logs only matches. Set `HOOK_AUDIT=1` in the hook env
+block to log every invocation including allows — useful for drift
+analysis ("constraint X never fires in practice; consider tightening
+the matcher").
+
+---
+
+## Local-only constraints (v2.11.x)
+
+You can ship personal-only constraints via the local-overlay path
+(see "Local-only skills" above). Drop a `constraints.json` into
+`$SKILL_GRAPH_LOCAL_DIR/`:
+
+```json
+{
+  "constraints": [
+    {
+      "_id": "constraint:local:cadenza:no-prod-deploy-friday",
+      "skill_id": "skill:claude-code:tool:bash",
+      "rule_text": "Never deploy to cadenza prod on Fridays.",
+      "violation_paraphrase": "kubectl apply or deploy.sh targeting prod environment with weekday=Friday",
+      "examples": {
+        "violating": "./deploy.sh prod  (run on Friday)",
+        "compliant": "./deploy.sh staging"
+      },
+      "constraint_embedding": null,
+      "severity": "fail",
+      "category": "safety",
+      "hook_config": {
+        "event": "PreToolUse",
+        "if": "Bash(*deploy*prod*)",
+        "evaluator": {
+          "type": "regex_in_field",
+          "field": "command",
+          "pattern": "deploy.*prod"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Hard guards** (enforced at seed time):
+- `_id` must start with `constraint:local:` — canonical-namespace local
+  constraints are rejected by `seed.py:_load_local_overlay`
+- `skill_id` MAY reference canonical skills (e.g., `skill:claude-code:tool:bash`).
+  This is intentional — the local namespace tags the *author* of the
+  constraint, not the *target*. You can add personal rules to public skills.
+
+**Inline evaluator types** (no Python code needed):
+
+| Type | Behavior | Use when |
+|---|---|---|
+| `regex_in_field` | `re.search(pattern, tool_input[field], IGNORECASE)` | Most common — match a regex against a tool input field |
+| `always_match` | Trust the matcher entirely; deny every reaching call | The Claude Code `if` matcher is sufficient on its own |
+| `never_match` | Never matches; outcome is always allow | Audit-only — observe pattern frequency before enforcing |
+
+For evaluators more complex than regex (e.g., date/time logic, AST
+parsing), add a Python entry to `EVALUATORS` in `check_constraint.py`
+keyed by your local constraint_id. The runtime falls back to that
+EVALUATORS lookup when no inline evaluator is set.
+
+**Workflow:**
+
+```bash
+# 1. Edit your local constraints file
+vim ~/.skill-graph-local/constraints.json
+
+# 2. Reseed (your local constraints upserted into db.constraints)
+python scripts/seed.py
+
+# 3. Re-emit hooks (your local entries appear in the fragment)
+python scripts/emit_hooks.py --output .claude/hooks.generated.json
+
+# 4. Merge into Claude Code settings (idempotent)
+python scripts/merge_settings.py
+```
+
+**Optional: Layer 2 vector search on local constraints.** If you also
+run `seed_constraint_embeddings.py`, your local constraints get
+voyage-4 embeddings and are queryable via `check_constraints` —
+useful for fuzzy semantic checks ("is this command violating any of
+my personal rules?") without requiring a regex pre-filter to fire.
+
 ---
 
 ## Querying the claude-code subgraph

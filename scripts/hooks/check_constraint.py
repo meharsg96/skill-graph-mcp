@@ -23,6 +23,7 @@ Writes:
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
@@ -37,6 +38,29 @@ except ImportError:
     print("check_constraint.py: pymongo not available; failing open",
           file=sys.stderr)
     sys.exit(0)
+
+
+def _log_run(client, db_name: str, *, constraint_id: str, tool_name: str,
+             outcome: str, matched: bool) -> None:
+    """Log this hook invocation to db.runs for audit. Never raises —
+    a failed write must not block the hook outcome."""
+    try:
+        client[db_name].runs.insert_one({
+            "tool": "hook:check_constraint",
+            "params": {
+                "constraint_id": constraint_id,
+                "tool_name": tool_name,
+            },
+            "outcome": outcome,
+            "matched": matched,
+            "session_id": os.environ.get(
+                "SESSION_ID",
+                f"session:hook-{os.getpid()}",
+            ),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc),
+        })
+    except Exception as e:  # noqa: BLE001
+        print(f"check_constraint.py: audit log failed: {e}", file=sys.stderr)
 
 
 def _allow() -> dict:
@@ -141,6 +165,51 @@ EVALUATORS = {
 }
 
 
+def _evaluate_inline(constraint: dict, tool_name: str,
+                     tool_input: dict, payload: dict) -> bool:
+    """Generic JSON-driven evaluator for local constraints that ship their
+    evaluation rule inline on the constraint document under
+    .hook_config.evaluator. Avoids requiring a Python EVALUATORS entry for
+    every local constraint — the user can express common patterns in JSON.
+
+    Supported evaluator types:
+
+      regex_in_field:
+        {type:"regex_in_field", field:"command", pattern:"..."}
+        Pulls tool_input[field], runs re.search(pattern, value, IGNORECASE).
+        Returns True if it matches.
+
+      always_match:
+        {type:"always_match"}
+        Trusts the settings.json `if` matcher entirely — denies on every
+        invocation that reaches this evaluator. Use sparingly; the
+        Claude Code matcher syntax is glob-y, not regex.
+
+      never_match:
+        {type:"never_match"}
+        Audit-only — logs invocations to db.runs but always returns
+        outcome:allow. Useful for observing tool patterns before deciding
+        whether to enforce.
+    """
+    hc = constraint.get("hook_config") or {}
+    ev = hc.get("evaluator") or {}
+    kind = ev.get("type")
+    if kind == "regex_in_field":
+        field = ev.get("field", "command")
+        pattern = ev.get("pattern", "")
+        if not pattern:
+            return False
+        value = tool_input.get(field, "")
+        if not isinstance(value, str):
+            value = str(value)
+        return bool(re.search(pattern, value, re.IGNORECASE))
+    if kind == "always_match":
+        return True
+    if kind == "never_match":
+        return False
+    return False
+
+
 def main() -> int:
     constraint_id = os.environ.get("CONSTRAINT_ID")
     if not constraint_id:
@@ -161,7 +230,6 @@ def main() -> int:
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
         constraint = client[db_name].constraints.find_one({"_id": constraint_id})
-        client.close()
     except Exception as e:
         # Fail-open: the hook should not block calls when the graph is down.
         print(json.dumps(_allow()))
@@ -171,21 +239,42 @@ def main() -> int:
 
     if not constraint:
         print(json.dumps(_allow()))
+        client.close()
         return 0
 
-    evaluator = EVALUATORS.get(constraint_id)
-    if not evaluator:
-        print(json.dumps(_allow()))
-        return 0
-
-    matched = evaluator(tool_name, tool_input, payload)
+    # Local-overlay constraints (constraint:local:*) carry their evaluator
+    # inline on the document — no Python entry needed in EVALUATORS.
+    if constraint_id.startswith("constraint:local:"):
+        matched = _evaluate_inline(constraint, tool_name, tool_input, payload)
+    else:
+        evaluator = EVALUATORS.get(constraint_id)
+        if not evaluator:
+            print(json.dumps(_allow()))
+            client.close()
+            return 0
+        matched = evaluator(tool_name, tool_input, payload)
     if not matched:
-        print(json.dumps(_allow()))
+        result = _allow()
+        print(json.dumps(result))
+        # Log even non-matches — they're useful for "constraint X never fires"
+        # drift signals. But only if the env explicitly opts in (HOOK_AUDIT=1).
+        if os.environ.get("HOOK_AUDIT") == "1":
+            _log_run(client, db_name,
+                     constraint_id=constraint_id, tool_name=tool_name,
+                     outcome="allow", matched=False)
+        client.close()
         return 0
 
     severity = constraint.get("severity", "warn")
     reason = constraint.get("rule_text", "Constraint matched.")
-    print(json.dumps(_outcome_for(severity, reason)))
+    result = _outcome_for(severity, reason)
+    print(json.dumps(result))
+    # Always log matches — these are the audit trail of what the runtime
+    # blocked or surfaced. Cheap (one write to an existing connection).
+    _log_run(client, db_name,
+             constraint_id=constraint_id, tool_name=tool_name,
+             outcome=result["outcome"], matched=True)
+    client.close()
     return 0
 
 

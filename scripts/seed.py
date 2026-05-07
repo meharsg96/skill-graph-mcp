@@ -561,6 +561,19 @@ def _load_local_overlay(db) -> None:
     if pref_count:
         print(f"  preferences upserted: {pref_count}")
 
+    # v2.11: local-only constraints. The _id must be in the constraint:local:
+    # namespace. The skill_id MAY reference a canonical skill — that's how a
+    # user adds personal rules to public skills (e.g., a private style rule
+    # against skill:leafygreen-ui). The local namespace tags the constraint
+    # author, not the target.
+    constraint_count = _overlay_load(
+        db.constraints, LOCAL_DIR / "constraints.json", "constraints",
+        guard=lambda d: d["_id"].startswith("constraint:local:"),
+        guard_msg="_id must start with 'constraint:local:'",
+    )
+    if constraint_count:
+        print(f"  constraints upserted: {constraint_count}")
+
 
 def _overlay_load(collection, path: Path, key: str, guard, guard_msg: str,
                   compat=None) -> int:

@@ -77,10 +77,21 @@ def _outcome_for(severity: str) -> str:
 
 
 def emit_hooks(db) -> dict:
-    """Return a settings.json-compatible {hooks: [...]} fragment."""
+    """Return a settings.json-compatible {hooks: [...]} fragment.
+
+    Two emission paths:
+    1. Canonical claude-code constraints — matcher dispatch via the MATCHERS
+       dict in this script. The runtime evaluator is a Python function in
+       check_constraint.py:EVALUATORS.
+    2. Local-overlay constraints (constraint:local:*) — matcher and
+       evaluator config inline on the document under .hook_config.
+       Useful for personal guardrails the user maintains in their own
+       LOCAL_DIR without editing the canonical script.
+    """
     fragment = {"hooks": []}
     skipped: list[tuple[str, str]] = []
 
+    # Path 1: canonical claude-code constraints
     cursor = db.constraints.find({"skill_id": {"$regex": "^skill:claude-code:"}})
     for c in cursor:
         cid = c["_id"]
@@ -102,9 +113,36 @@ def emit_hooks(db) -> dict:
             "reason_preview": c["rule_text"][:140],
         })
 
+    # Path 2: local-overlay constraints with inline hook_config
+    cursor = db.constraints.find({
+        "_id": {"$regex": "^constraint:local:"},
+        "hook_config": {"$exists": True},
+    })
+    local_count = 0
+    for c in cursor:
+        hc = c["hook_config"]
+        if not hc.get("event") or not hc.get("if"):
+            skipped.append((c["_id"], "hook_config missing event or if"))
+            continue
+        fragment["hooks"].append({
+            "event": hc["event"],
+            "if": hc["if"],
+            "tool": HOOK_SCRIPT,
+            "timeout": 5000,
+            "env": {
+                "CONSTRAINT_ID": c["_id"],
+                "MONGODB_URI": MONGODB_URI,
+                "SKILL_GRAPH_DB": DB_NAME,
+            },
+            "outcome": _outcome_for(c.get("severity", "warn")),
+            "reason_preview": c.get("rule_text", "")[:140],
+        })
+        local_count += 1
+
     fragment["_meta"] = {
         "generated_from": "db.constraints",
         "constraint_count": len(fragment["hooks"]),
+        "local_count": local_count,
         "skipped": skipped,
     }
     return fragment
