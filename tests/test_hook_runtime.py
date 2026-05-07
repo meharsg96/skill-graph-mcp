@@ -12,8 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_SCRIPT = REPO_ROOT / "scripts" / "hooks" / "check_constraint.py"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
