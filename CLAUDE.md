@@ -7,6 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Requires MongoDB 7.x+ running locally on `mongodb://localhost:27017` and Python 3.10+.
 `MONGODB_URI` env var overrides the default; `SESSION_ID` tags every tool-call log.
 
+`.env` may carry a non-default `MONGODB_URI` if you also run Atlas Local on a
+second port (e.g. `:27018`) for `$vectorSearch` work. Scripts that load
+`.env` (`seed_constraint_embeddings.py`, `query_layer2.py`) will use that
+URI unless overridden — pass `MONGODB_URI=mongodb://localhost:27017 …` to
+target the native dev DB explicitly. Shell env wins over `.env` because
+`load_dotenv` does not override existing variables.
+
 ```bash
 pip install -r requirements-dev.txt   # runtime + pytest, testcontainers, ruff
 python scripts/seed.py                # drop+recreate skills/edges/parameters; preserves runs collection
